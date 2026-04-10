@@ -7,12 +7,37 @@
   <link rel="stylesheet" href="<?php echo htmlspecialchars(BASE_URL . '/assets/css/coordinador_preguntas.css'); ?>">
 </head>
 <body>
-  <nav class="topnav">
-    <span>Preguntas de evaluación</span>
-    <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=curso&id=' . (int) ($curso['id_cursos'] ?? 0)); ?>">Volver al curso</a>
-    <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=auth&a=logout'); ?>">Salir</a>
-  </nav>
+  <?php $navActive = 'coord_preguntas'; require BASE_PATH . '/views/auth/header.php'; ?>
   <main>
+    <?php
+    // #region agent log
+    @file_put_contents(
+        BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+        json_encode(
+            [
+                'sessionId' => '4338d8',
+                'runId' => 'run1',
+                'hypothesisId' => 'H1',
+                'location' => 'views/coordinador/preguntas.php:subnav',
+                'message' => 'preguntas subnav rendered',
+                'data' => [
+                    'idCurso' => (int) ($curso['id_cursos'] ?? 0),
+                    'hasCoordContextToolbar' => true,
+                    'css' => 'assets/css/coordinador_preguntas.css',
+                    'request' => (string) ($_SERVER['REQUEST_URI'] ?? ''),
+                ],
+                'timestamp' => (int) round(microtime(true) * 1000),
+            ],
+            JSON_UNESCAPED_UNICODE
+        ) . PHP_EOL,
+        FILE_APPEND
+    );
+    // #endregion
+    ?>
+    <div class="coord-context-toolbar" role="navigation" aria-label="Contexto de evaluación">
+      <span>Preguntas de evaluación</span>
+      <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=curso&id=' . (int) ($curso['id_cursos'] ?? 0)); ?>">Volver al curso</a>
+    </div>
     <h1><?php echo htmlspecialchars($curso['nombre_curso'] ?? ''); ?></h1>
     <?php if (!empty($mensaje)): ?>
       <p class="flash-ok"><?php echo htmlspecialchars($mensaje); ?></p>

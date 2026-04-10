@@ -48,6 +48,152 @@ main {
   color: #64748b;
 }
 
+.progress-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin-top: 0.35rem;
+}
+
+.progress-meta {
+  margin: 0;
+}
+
+.btn-certificado-verde {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ecfdf5;
+  background: linear-gradient(135deg, #14532d, #15803d);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(20, 83, 45, 0.28);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.btn-certificado-verde:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(20, 83, 45, 0.35);
+  filter: brightness(1.03);
+}
+
+.btn-certificado-verde:focus-visible {
+  outline: 3px solid rgba(34, 197, 94, 0.5);
+  outline-offset: 2px;
+}
+
+.cert-dialog {
+  margin: auto;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  max-width: calc(100vw - 2rem);
+  width: min(400px, 100%);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+}
+
+.cert-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.cert-dialog-inner {
+  position: relative;
+  padding: 1.75rem 1.5rem 1.5rem;
+  background: #fff;
+  border-radius: 14px;
+}
+
+.cert-dialog-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.65rem;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+}
+
+.cert-dialog-close:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.cert-dialog-badge {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.cert-dialog-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  text-align: center;
+  color: #14532d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cert-dialog-curso {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.cert-dialog-label {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  text-align: center;
+}
+
+.cert-dialog-nombre {
+  margin: 0.25rem 0 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  color: #1e293b;
+}
+
+.cert-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.btn-cert-descargar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #16a34a, #15803d);
+  border-radius: 10px;
+  text-decoration: none;
+  box-shadow: 0 6px 14px rgba(21, 128, 61, 0.3);
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.btn-cert-descargar:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
 .estado {
   display: inline-block;
   margin-top: 0.5rem;

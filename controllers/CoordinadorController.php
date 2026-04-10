@@ -43,6 +43,35 @@ class CoordinadorController extends Controller
         ]);
     }
 
+    public function reportes(): void
+    {
+        $this->requireAuth(['coordinador']);
+        $pdo = getPDO();
+        // #region agent log
+        @file_put_contents(
+            BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+            json_encode(
+                [
+                    'sessionId' => '4338d8',
+                    'runId' => 'run1',
+                    'hypothesisId' => 'Hloop',
+                    'location' => 'controllers/CoordinadorController.php:reportes',
+                    'message' => 'enter reportes',
+                    'data' => ['request' => (string) ($_SERVER['REQUEST_URI'] ?? '')],
+                    'timestamp' => (int) round(microtime(true) * 1000),
+                ],
+                JSON_UNESCAPED_UNICODE
+            ) . PHP_EOL,
+            FILE_APPEND
+        );
+        // #endregion
+        $this->render('coordinador/reportes', [
+            'cursos' => Curso::porCoordinador($pdo, $_SESSION['usuario_cedula']),
+            'mensaje' => $this->flash('ok'),
+            'error' => $this->flash('error'),
+        ]);
+    }
+
     public function asesores(): void
     {
         $this->requireAuth(['coordinador']);
@@ -624,5 +653,127 @@ class CoordinadorController extends Controller
         PreguntaEvaluacion::eliminar($pdo, $idP);
         $this->flash('ok', 'Pregunta eliminada.');
         $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+    }
+
+    public function reporte(): void
+    {
+        $this->requireAuth(['coordinador']);
+        $pdo = getPDO();
+        $idCurso = (int) ($_GET['id'] ?? 0);
+        $curso = $this->asegurarCurso($pdo, $idCurso);
+        if ($curso === null) {
+            $this->flash('error', 'Curso no disponible.');
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso);
+        $this->render('coordinador/reporte', [
+            'curso' => $data['curso'],
+            'filas' => $data['filas'],
+            'mensaje' => $this->flash('ok'),
+            'error' => $this->flash('error'),
+        ]);
+    }
+
+    public function reporte_csv(): void
+    {
+        $this->requireAuth(['coordinador']);
+        $pdo = getPDO();
+        $idCurso = (int) ($_GET['id'] ?? 0);
+        $curso = $this->asegurarCurso($pdo, $idCurso);
+        if ($curso === null) {
+            http_response_code(403);
+            echo 'No disponible.';
+            return;
+        }
+
+        $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso);
+        $filas = $data['filas'] ?? [];
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="reporte_curso_' . $idCurso . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        if ($out === false) {
+            http_response_code(500);
+            echo 'No se pudo generar el archivo.';
+            return;
+        }
+        // Excel-friendly
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        fputcsv($out, [
+            'cedula_asesor',
+            'nombre_asesor',
+            'estado_capacitacion',
+            'progreso_porcentaje',
+            'modulos_completos',
+            'modulos_total',
+            'quices_aprobados',
+            'quices_activos',
+            'evaluacion_resultado',
+            'evaluacion_puntaje',
+            'evaluacion_fecha',
+            'calificacion_obtenida',
+            'fecha_asignacion',
+            'fecha_completado',
+        ]);
+
+        foreach ($filas as $f) {
+            fputcsv($out, [
+                (string) ($f['cedula_asesor'] ?? ''),
+                (string) ($f['nombre_asesor'] ?? ''),
+                (string) ($f['estado_capacitacion'] ?? ''),
+                (string) ($f['progreso_porcentaje'] ?? ''),
+                (string) ($f['modulos_completos'] ?? ''),
+                (string) ($f['modulos_total'] ?? ''),
+                (string) ($f['quices_aprobados'] ?? ''),
+                (string) ($f['quices_activos'] ?? ''),
+                (string) ($f['evaluacion_resultado'] ?? ''),
+                (string) ($f['evaluacion_puntaje'] ?? ''),
+                (string) ($f['evaluacion_fecha'] ?? ''),
+                (string) ($f['calificacion_obtenida'] ?? ''),
+                (string) ($f['fecha_asignacion'] ?? ''),
+                (string) ($f['fecha_completado'] ?? ''),
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
+
+    public function reporte_pdf(): void
+    {
+        // Fase 2: para PDF real, integrar una librería (ej. dompdf) vía composer.
+        // Por ahora, renderizamos una vista imprimible que el coordinador puede guardar como PDF desde el navegador.
+        $this->requireAuth(['coordinador']);
+        $pdo = getPDO();
+        $idCurso = (int) ($_GET['id'] ?? 0);
+        $curso = $this->asegurarCurso($pdo, $idCurso);
+        if ($curso === null) {
+            $this->flash('error', 'Curso no disponible.');
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso);
+        $this->render('coordinador/reporte_pdf', [
+            'curso' => $data['curso'],
+            'filas' => $data['filas'],
+        ]);
+    }
+
+    public function asesor_detalle(): void
+    {
+        $this->requireAuth(['coordinador']);
+        $pdo = getPDO();
+        $idCurso = (int) ($_GET['id'] ?? 0);
+        $cedula = trim((string) ($_GET['cedula'] ?? ''));
+        $curso = $this->asegurarCurso($pdo, $idCurso);
+        if ($curso === null || $cedula === '') {
+            $this->flash('error', 'No disponible.');
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        $data = CoordinadorReporte::detalleAsesor($pdo, $curso, $idCurso, $cedula);
+        $this->render('coordinador/asesor_detalle', $data);
     }
 }

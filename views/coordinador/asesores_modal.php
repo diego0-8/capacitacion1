@@ -38,6 +38,9 @@
           </div>
         </summary>
         <div class="asesor-body">
+          <div style="margin-bottom:10px">
+            <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=asesor_detalle&id=' . (int) ($curso['id_cursos'] ?? 0) . '&cedula=' . rawurlencode($ced)); ?>">Ver detalle (trazabilidad)</a>
+          </div>
           <table class="mods">
             <thead>
               <tr>

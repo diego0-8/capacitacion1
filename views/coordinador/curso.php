@@ -7,14 +7,39 @@
   <link rel="stylesheet" href="<?php echo htmlspecialchars(BASE_URL . '/assets/css/coordinador_curso.css'); ?>">
 </head>
 <body>
-  <nav class="topnav">
-    <span><?php echo htmlspecialchars($curso['nombre_curso'] ?? ''); ?></span>
-    <button type="button" class="btn-asesores" data-open-asesores="<?php echo (int) $curso['id_cursos']; ?>">Asesores</button>
-    <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=preguntas&id=' . (int) $curso['id_cursos']); ?>">Evaluación</a>
-    <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=index'); ?>">Mis cursos</a>
-    <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=auth&a=logout'); ?>">Salir</a>
-  </nav>
+  <?php $navActive = 'coord_curso'; require BASE_PATH . '/views/auth/header.php'; ?>
   <main>
+    <?php
+    // #region agent log
+    @file_put_contents(
+        BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+        json_encode(
+            [
+                'sessionId' => '4338d8',
+                'runId' => 'post-fix',
+                'hypothesisId' => 'H2',
+                'location' => 'views/coordinador/curso.php:subnav',
+                'message' => 'curso subnav rendered',
+                'data' => [
+                    'idCurso' => (int) ($curso['id_cursos'] ?? 0),
+                    'hasSecondaryTopnav' => false,
+                    'usesCoordContextToolbar' => true,
+                    'request' => (string) ($_SERVER['REQUEST_URI'] ?? ''),
+                ],
+                'timestamp' => (int) round(microtime(true) * 1000),
+            ],
+            JSON_UNESCAPED_UNICODE
+        ) . PHP_EOL,
+        FILE_APPEND
+    );
+    // #endregion
+    ?>
+    <div class="coord-context-toolbar" role="navigation" aria-label="Acciones del curso">
+      <span><?php echo htmlspecialchars($curso['nombre_curso'] ?? ''); ?></span>
+      <button type="button" class="btn-asesores" data-open-asesores="<?php echo (int) $curso['id_cursos']; ?>">Asesores</button>
+      <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=preguntas&id=' . (int) $curso['id_cursos']); ?>">Evaluación</a>
+      <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=reporte&id=' . (int) $curso['id_cursos']); ?>">Reporte</a>
+    </div>
     <?php if (!empty($mensaje)): ?>
       <p class="flash-ok"><?php echo htmlspecialchars($mensaje); ?></p>
     <?php endif; ?>

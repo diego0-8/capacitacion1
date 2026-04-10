@@ -15,6 +15,24 @@ class InicioController extends Controller
             $this->redirect('?c=coordinador&a=index');
         }
         if ($rol === 'asesor') {
+            // #region agent log
+            @file_put_contents(
+                BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+                json_encode(
+                    [
+                        'sessionId' => '4338d8',
+                        'runId' => 'run1',
+                        'hypothesisId' => 'H4',
+                        'location' => 'InicioController::index',
+                        'message' => 'redirect asesor',
+                        'data' => [],
+                        'timestamp' => (int) round(microtime(true) * 1000),
+                    ],
+                    JSON_UNESCAPED_UNICODE
+                ) . PHP_EOL,
+                FILE_APPEND
+            );
+            // #endregion
             $this->redirect('?c=asesor&a=index');
         }
         $this->redirect('?c=auth&a=login');

@@ -407,6 +407,50 @@ td {
   border-radius: 8px;
 }
 
+/* Barra contextual del curso (no duplicar el aspecto del header global .topnav) */
+.coord-context-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.coord-context-toolbar > span:first-of-type {
+  margin-right: auto;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.coord-context-toolbar a {
+  color: #14532d;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.coord-context-toolbar a:hover {
+  text-decoration: underline;
+}
+
+.coord-context-toolbar .btn-asesores {
+  padding: 0.45rem 0.75rem;
+  background: #14532d;
+  color: #ecfdf5;
+  border: 1px solid rgba(20, 83, 45, 0.25);
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.coord-context-toolbar .btn-asesores:hover {
+  background: #15803d;
+}
+
 .topnav .btn-asesores {
   padding: 0.45rem 0.75rem;
   background: rgba(236, 253, 245, 0.15);

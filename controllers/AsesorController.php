@@ -100,8 +100,9 @@ class AsesorController extends Controller
             $done = (int) ($st['completadas'] ?? 0);
             $quizActivo = !empty($st['quiz_activo']);
             $quizOk = !empty($st['quiz_aprobado']);
+            // Regla: un módulo sin clases NO cuenta como 100%.
             if ($total === 0) {
-                continue;
+                return false;
             }
             if ($done < $total) {
                 return false;
@@ -124,9 +125,6 @@ class AsesorController extends Controller
         if ($estado === 'completado') {
             return [100, 'completado'];
         }
-        if ($nLeccionesCurso === 0 && $estado === 'en_progreso') {
-            return [100, 'evaluacion_pendiente'];
-        }
         $pg = self::progresoGeneralCurso($moduloEstado);
         if ($nLeccionesCurso > 0 && self::asesorCompletoTodosModulos($moduloEstado)) {
             return [100, 'evaluacion_pendiente'];
@@ -144,11 +142,114 @@ class AsesorController extends Controller
     {
         $this->requireAuth(['asesor']);
         $pdo = getPDO();
+        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
+        // #region agent log
+        @file_put_contents(
+            BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+            json_encode(
+                [
+                    'sessionId' => '4338d8',
+                    'runId' => 'run1',
+                    'hypothesisId' => 'H2',
+                    'location' => 'AsesorController::index',
+                    'message' => 'enter',
+                    'data' => ['cedulaLen' => strlen($cedula)],
+                    'timestamp' => (int) round(microtime(true) * 1000),
+                ],
+                JSON_UNESCAPED_UNICODE
+            ) . PHP_EOL,
+            FILE_APPEND
+        );
+        // #endregion
+        try {
+            $items = CapacitacionAsignada::porAsesor($pdo, $cedula);
+            $cursos = Curso::activos($pdo);
+            $insignias = Insignia::mapCursoCompletadoPorAsesor($pdo, $cedula);
+        } catch (Throwable $e) {
+            // #region agent log
+            @file_put_contents(
+                BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+                json_encode(
+                    [
+                        'sessionId' => '4338d8',
+                        'runId' => 'run1',
+                        'hypothesisId' => 'H1',
+                        'location' => 'AsesorController::index',
+                        'message' => 'exception loading index data',
+                        'data' => [
+                            'type' => get_class($e),
+                            'code' => $e->getCode(),
+                            'msg' => $e->getMessage(),
+                        ],
+                        'timestamp' => (int) round(microtime(true) * 1000),
+                    ],
+                    JSON_UNESCAPED_UNICODE
+                ) . PHP_EOL,
+                FILE_APPEND
+            );
+            // #endregion
+            throw $e;
+        }
+        // #region agent log
+        @file_put_contents(
+            BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+            json_encode(
+                [
+                    'sessionId' => '4338d8',
+                    'runId' => 'post-fix',
+                    'hypothesisId' => 'H1',
+                    'location' => 'AsesorController::index',
+                    'message' => 'index data loaded ok',
+                    'data' => ['items' => count($items), 'cursos' => count($cursos)],
+                    'timestamp' => (int) round(microtime(true) * 1000),
+                ],
+                JSON_UNESCAPED_UNICODE
+            ) . PHP_EOL,
+            FILE_APPEND
+        );
+        // #endregion
         $this->render('asesor/index', [
-            'items' => CapacitacionAsignada::porAsesor($pdo, $_SESSION['usuario_cedula']),
-            'cursos' => Curso::activos($pdo),
+            'items' => $items,
+            'cursos' => $cursos,
+            'insigniasPorCurso' => $insignias,
+            'nombreAsesorCompleto' => (string) ($_SESSION['usuario_nombre'] ?? ''),
             'mensaje' => $this->flash('ok'),
             'error' => $this->flash('error'),
+        ]);
+    }
+
+    /** Vista imprimible del certificado de curso completado (guardar como PDF desde el navegador). */
+    public function certificado(): void
+    {
+        $this->requireAuth(['asesor']);
+        $pdo = getPDO();
+        $idAsignacion = (int) ($_GET['id'] ?? 0);
+        if ($idAsignacion <= 0) {
+            $this->flash('error', 'Solicitud inválida.');
+            $this->redirect('?c=asesor&a=index');
+            return;
+        }
+        $asig = $this->asegurarAsignacion($pdo, $idAsignacion);
+        if ($asig === null) {
+            $this->flash('error', 'No tiene acceso a esta capacitación.');
+            $this->redirect('?c=asesor&a=index');
+            return;
+        }
+        if ((string) ($asig['estado_capacitacion'] ?? '') !== 'completado') {
+            $this->flash('error', 'El certificado solo está disponible cuando el curso está completado.');
+            $this->redirect('?c=asesor&a=index');
+            return;
+        }
+        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
+        $idCurso = (int) ($asig['id_curso'] ?? 0);
+        $mapIns = Insignia::mapCursoCompletadoPorAsesor($pdo, $cedula);
+        $insRow = $mapIns[$idCurso] ?? null;
+        $fechaOtorgada = is_array($insRow) ? (string) ($insRow['otorgada_en'] ?? '') : '';
+
+        $this->render('asesor/certificado_print', [
+            'nombreCurso' => (string) ($asig['nombre_curso'] ?? ''),
+            'nombreAsesor' => (string) ($_SESSION['usuario_nombre'] ?? ''),
+            'fechaOtorgada' => $fechaOtorgada,
         ]);
     }
 
@@ -285,6 +386,7 @@ class AsesorController extends Controller
         $this->render('asesor/curso', [
             'asignacion' => $asig,
             'curso' => Curso::buscar($pdo, $idCurso),
+            'insigniaCursoCompletado' => (Insignia::mapCursoCompletadoPorAsesor($pdo, $cedulaAsesor))[$idCurso] ?? null,
             'modulos' => $modulos,
             'leccionesPorModulo' => $leccionesPorModulo,
             'totalLecciones' => count($lecciones),
@@ -565,10 +667,22 @@ class AsesorController extends Controller
         $ratio = $correctas / $total;
         $puntaje = min(9.99, round($ratio * 10, 2));
         $resultado = $ratio >= 0.7 ? 'aprobado' : 'reprobado';
-        IntentoEvaluacion::registrar($pdo, $_SESSION['usuario_cedula'], $idCurso, $puntaje, $resultado);
+        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
+        IntentoEvaluacion::registrar($pdo, $cedula, $idCurso, $puntaje, $resultado);
         if ($resultado === 'aprobado') {
-            CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'completado');
-            $this->flash('ok', 'Evaluación aprobada. Nota: ' . number_format($puntaje, 2) . '/10.');
+            // Por seguridad, validar que el curso realmente cumple la regla de completado (módulos 100% + quiz).
+            if (CursoProgreso::asesorCompletoTodosModulos($pdo, $cedula, $idCurso)) {
+                CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'completado');
+                Insignia::otorgarCursoCompletado($pdo, $cedula, $idCurso, [
+                    'puntaje' => $puntaje,
+                    'correctas' => $correctas,
+                    'total' => $total,
+                ]);
+                $this->flash('ok', 'Evaluación aprobada. Insignia otorgada. Nota: ' . number_format($puntaje, 2) . '/10.');
+            } else {
+                CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'evaluacion_pendiente');
+                $this->flash('error', 'Evaluación aprobada, pero aún faltan módulos por completar al 100%.');
+            }
         } else {
             CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'evaluacion_pendiente');
             $this->flash('error', 'No alcanzó el mínimo (70%). Puede revisar el material e intentar de nuevo.');

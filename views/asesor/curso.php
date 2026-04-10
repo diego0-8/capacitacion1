@@ -32,6 +32,17 @@
                 </div>
                 <span class="badge text-bg-secondary"><?php echo htmlspecialchars((string) ($asignacion['estado_capacitacion'] ?? '')); ?></span>
               </div>
+              <?php if (!empty($insigniaCursoCompletado) && is_array($insigniaCursoCompletado)): ?>
+                <div class="mt-2">
+                  <span class="badge text-bg-success">Insignia otorgada</span>
+                  <div class="small text-muted mt-1">
+                    <?php echo htmlspecialchars((string) ($insigniaCursoCompletado['tipo'] ?? 'curso_completado')); ?>
+                    <?php if (!empty($insigniaCursoCompletado['otorgada_en'])): ?>
+                      · <?php echo htmlspecialchars((string) $insigniaCursoCompletado['otorgada_en']); ?>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              <?php endif; ?>
               <div class="mt-2 text-muted small">
                 <?php echo nl2br(htmlspecialchars((string) ($curso['descripcion'] ?? ''))); ?>
               </div>

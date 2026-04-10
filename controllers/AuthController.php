@@ -43,12 +43,52 @@ class AuthController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $usuario = trim((string) ($_POST['usuario'] ?? ''));
             $clave = (string) ($_POST['clave'] ?? '');
-            $row = $usuario !== '' ? Usuario::buscarPorUsuario($pdo, $usuario) : null;
-            if ($row && ($row['estado'] ?? '') === 'activo' && password_verify($clave, $row['clave'])) {
+            // #region agent log
+            try {
+                $row = $usuario !== '' ? Usuario::buscarPorUsuario($pdo, $usuario) : null;
+            } catch (Throwable $e) {
+                @file_put_contents(
+                    BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+                    json_encode(
+                        [
+                            'sessionId' => '4338d8',
+                            'runId' => 'run1',
+                            'hypothesisId' => 'H3',
+                            'location' => 'AuthController::login',
+                            'message' => 'exception in buscarPorUsuario',
+                            'data' => ['type' => get_class($e), 'code' => $e->getCode()],
+                            'timestamp' => (int) round(microtime(true) * 1000),
+                        ],
+                        JSON_UNESCAPED_UNICODE
+                    ) . PHP_EOL,
+                    FILE_APPEND
+                );
+                throw $e;
+            }
+            // #endregion
+            if ($row && ($row['estado'] ?? '') === 'activo' && password_verify($clave, (string) ($row['clave'] ?? ''))) {
                 $_SESSION['usuario_cedula'] = $row['cedula'];
                 $_SESSION['usuario_nombre'] = $row['nombre'];
                 $_SESSION['usuario_rol'] = $row['rol'];
                 $_SESSION['usuario_login'] = $row['usuario'];
+                // #region agent log
+                @file_put_contents(
+                    BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
+                    json_encode(
+                        [
+                            'sessionId' => '4338d8',
+                            'runId' => 'run1',
+                            'hypothesisId' => 'H1',
+                            'location' => 'AuthController::login',
+                            'message' => 'login ok redirect inicio',
+                            'data' => ['rol' => (string) ($row['rol'] ?? '')],
+                            'timestamp' => (int) round(microtime(true) * 1000),
+                        ],
+                        JSON_UNESCAPED_UNICODE
+                    ) . PHP_EOL,
+                    FILE_APPEND
+                );
+                // #endregion
                 $this->redirect('?c=inicio&a=index');
                 return;
             }

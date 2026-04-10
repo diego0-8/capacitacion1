@@ -26,6 +26,35 @@ main {
   padding: 0 1.25rem;
 }
 
+.coord-context-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.coord-context-toolbar > span:first-of-type {
+  margin-right: auto;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.coord-context-toolbar a {
+  color: #14532d;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.coord-context-toolbar a:hover {
+  text-decoration: underline;
+}
+
 form.nueva {
   background: #fff;
   padding: 1.25rem;

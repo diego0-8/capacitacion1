@@ -99,6 +99,7 @@
               <tr>
                 <th>Cédula</th>
                 <th>Nombre</th>
+                <th>Usuario</th>
                 <th>Rol</th>
                 <th></th>
               </tr>
@@ -108,6 +109,7 @@
                 <tr>
                   <td><?php echo htmlspecialchars((string) ($u['cedula'] ?? '')); ?></td>
                   <td><?php echo htmlspecialchars((string) ($u['nombre'] ?? '')); ?></td>
+                  <td><code class="login-user"><?php echo htmlspecialchars((string) ($u['usuario'] ?? '')); ?></code></td>
                   <td><?php echo htmlspecialchars((string) ($u['rol'] ?? '')); ?></td>
                   <td>
                     <a
