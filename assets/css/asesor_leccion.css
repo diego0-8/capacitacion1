@@ -1,0 +1,57 @@
+@import url("base.css");
+
+.topnav {
+  background: #1e3a5f;
+  color: #e0f2fe;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.topnav a {
+  color: #7dd3fc;
+  text-decoration: none;
+}
+
+.topnav span {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+main {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+
+.recurso {
+  background: #fff;
+  padding: 1.25rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.recurso a.file {
+  word-break: break-all;
+}
+
+video {
+  border-radius: 8px;
+  background: #000;
+}
+
+form.inline {
+  margin-top: 1rem;
+}
+
+form.inline button {
+  padding: 0.6rem 1rem;
+  background: #0284c7;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}

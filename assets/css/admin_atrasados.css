@@ -1,0 +1,49 @@
+@import url("base.css");
+
+.topnav {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.topnav a {
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.topnav span {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+main {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+li {
+  background: #fff;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: baseline;
+}
+
+li strong {
+  color: #b45309;
+}

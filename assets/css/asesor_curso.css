@@ -1,0 +1,153 @@
+@import url("base.css");
+
+.topnav {
+  background: #1e3a5f;
+  color: #e0f2fe;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.topnav a {
+  color: #7dd3fc;
+  text-decoration: none;
+}
+
+.topnav span {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+main {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
+  min-height: calc(100vh - 72px);
+}
+
+.container-fluid {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.card {
+  border-radius: 12px;
+}
+
+.accordion {
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+
+.stretch-card {
+  height: 100%;
+}
+
+.stretch-card > .card-body {
+  height: 100%;
+}
+
+.card-body video {
+  max-height: 60vh;
+}
+
+.card-body img {
+  max-height: 60vh;
+  object-fit: contain;
+}
+
+.flip-img {
+  perspective: 1000px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.flip-inner {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+  transition: transform 600ms ease;
+}
+
+.flip-img.flipped .flip-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-front,
+.flip-back {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flip-back {
+  position: absolute;
+  inset: 0;
+  padding: 0.75rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  transform: rotateY(180deg);
+  overflow: auto;
+}
+
+.lecciones {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.lecciones li {
+  background: #fff;
+  padding: 1rem 1.15rem;
+  border-radius: 10px;
+  margin-bottom: 0.65rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  background: #0284c7;
+}
+
+.acciones-eval {
+  margin-top: 1.5rem;
+}
+
+.acciones-eval a {
+  display: inline-block;
+  padding: 0.65rem 1rem;
+  background: #0284c7;
+  color: #fff !important;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.flash-ok {
+  background: #ecfdf5;
+  color: #047857;
+  padding: 0.65rem;
+  border-radius: 8px;
+}
+
+.flash-err {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 0.65rem;
+  border-radius: 8px;
+}

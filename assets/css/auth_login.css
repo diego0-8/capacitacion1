@@ -1,0 +1,70 @@
+@import url("base.css");
+
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-wrap {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+}
+
+.login-card h1 {
+  margin-top: 0;
+  font-size: 1.35rem;
+}
+
+.login-card label {
+  display: block;
+  font-weight: 600;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.login-card input[type="text"],
+.login-card input[type="password"] {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.login-card button {
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alert-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.alert-ok {
+  background: #ecfdf5;
+  color: #047857;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}

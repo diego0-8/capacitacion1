@@ -1,0 +1,97 @@
+@import url("base.css");
+
+.topnav {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.topnav a {
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.topnav span {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+main {
+  max-width: 1100px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 800px) {
+  .grid {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+.panel {
+  background: #fff;
+  padding: 1.25rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 0.75rem;
+}
+
+select {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+
+button[type="submit"] {
+  margin-top: 1rem;
+  padding: 0.6rem 1rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+th,
+td {
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.flash-ok {
+  background: #ecfdf5;
+  color: #047857;
+  padding: 0.65rem;
+  border-radius: 8px;
+}
+
+.flash-err {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 0.65rem;
+  border-radius: 8px;
+}

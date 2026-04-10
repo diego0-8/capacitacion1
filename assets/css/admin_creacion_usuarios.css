@@ -1,0 +1,157 @@
+@import url("base.css");
+
+.topnav {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.topnav a {
+  color: #93c5fd;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.topnav a:hover {
+  text-decoration: underline;
+}
+
+.topnav span {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+main {
+  max-width: 1150px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+
+.layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 900px) {
+  .layout {
+    grid-template-columns: 1.15fr 0.85fr;
+    align-items: start;
+  }
+}
+
+.card {
+  background: #fff;
+  padding: 1.25rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.15rem;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 0.85rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+select {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+input[readonly] {
+  background: #f8fafc;
+}
+
+button[type="submit"] {
+  margin-top: 1.25rem;
+  padding: 0.7rem 1.15rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.help {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+}
+
+.flash-ok {
+  background: #ecfdf5;
+  color: #047857;
+  padding: 0.65rem;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.flash-err {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 0.65rem;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+th,
+td {
+  padding: 0.65rem 0.7rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  background: #f8fafc;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.5rem 0.8rem;
+  background: #2563eb;
+  color: #fff !important;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.btn-secondary {
+  display: inline-block;
+  padding: 0.5rem 0.8rem;
+  background: #334155;
+  color: #fff !important;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+

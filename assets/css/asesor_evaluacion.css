@@ -1,0 +1,59 @@
+@import url("base.css");
+
+.topnav {
+  background: #1e3a5f;
+  color: #e0f2fe;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.topnav a {
+  color: #7dd3fc;
+  text-decoration: none;
+}
+
+.topnav span {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+main {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+
+.pregunta {
+  background: #fff;
+  padding: 1.15rem 1.25rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.pregunta p {
+  margin-top: 0;
+  font-weight: 600;
+}
+
+.opciones label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 0.45rem;
+  font-weight: normal;
+}
+
+button.enviar {
+  margin-top: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: #0284c7;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
