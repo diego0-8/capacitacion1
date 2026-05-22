@@ -25,7 +25,7 @@ if (!is_file($vista)) {
     if (stripos($c, 'leccion_crear') === false) {
         $errores[] = 'views/coordinador/curso.php no enlaza leccion_crear.';
     }
-    if (stripos($c, 'name=\"id_modulo\"') === false && stripos($c, "name='id_modulo'") === false) {
+    if (stripos($c, 'name="id_modulo"') === false && stripos($c, "name='id_modulo'") === false) {
         $errores[] = 'views/coordinador/curso.php no envía id_modulo en el formulario de clases.';
     }
 }

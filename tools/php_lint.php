@@ -9,7 +9,6 @@ declare(strict_types=1);
 $targets = [
     __DIR__ . '/../index.php',
     __DIR__ . '/../config.php',
-    __DIR__ . '/../crear_hash.php',
     __DIR__ . '/../controllers',
     __DIR__ . '/../models',
     __DIR__ . '/../core',

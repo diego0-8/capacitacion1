@@ -4,24 +4,70 @@ declare(strict_types=1);
 
 class CoordinadorReporte
 {
+    /** @var array<string, string> */
+    private const EMPRESA_LABELS = [
+        'onix' => 'Onix',
+        'nextdata' => 'Nextdata',
+        'tys' => 'TyS',
+    ];
+
     private static function tablaExiste(PDO $pdo, string $nombre): bool
     {
         $st = $pdo->prepare('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = :db AND table_name = :t');
         $st->execute(['db' => DB_NAME, 't' => $nombre]);
         $r = $st->fetch();
+
         return (int) ($r['n'] ?? 0) === 1;
+    }
+
+    private static function tieneColumnaEmpresa(PDO $pdo): bool
+    {
+        static $cache = null;
+
+        if ($cache !== null) {
+            return $cache;
+        }
+        $st = $pdo->prepare(
+            'SELECT COUNT(*) AS n FROM information_schema.columns
+             WHERE table_schema = :db AND table_name = \'usuarios\' AND column_name = \'empresa\''
+        );
+        $st->execute(['db' => DB_NAME]);
+        $row = $st->fetch();
+        $cache = (int) ($row['n'] ?? 0) === 1;
+
+        return $cache;
+    }
+
+    public static function normalizarFiltroEmpresa(?string $valor): string
+    {
+        $v = strtolower(trim((string) $valor));
+
+        return in_array($v, ['onix', 'nextdata', 'tys'], true) ? $v : '';
+    }
+
+    public static function etiquetaEmpresa(string $empresa): string
+    {
+        $key = strtolower(trim($empresa));
+
+        return self::EMPRESA_LABELS[$key] ?? ($key !== '' ? ucfirst($key) : '—');
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function empresaDesdeFila(array $row): string
+    {
+        $emp = strtolower(trim((string) ($row['empresa_asesor'] ?? '')));
+
+        return in_array($emp, ['onix', 'nextdata', 'tys'], true) ? $emp : 'onix';
     }
 
     /** @return array{curso:array<string,mixed>,asesores:array<int,array<string,mixed>>,modulos:array<int,array<string,mixed>>} */
     public static function asesoresPorCurso(PDO $pdo, array $curso, int $idCurso): array
     {
-        // #region agent log
-        debug_log('CoordinadorReporte::asesoresPorCurso', 'enter', ['idCurso' => $idCurso], 'run1', 'H5');
-        // #endregion
+        $colEmpresa = self::tieneColumnaEmpresa($pdo) ? ', u.empresa AS empresa_asesor' : '';
         // LEFT JOIN: si falta fila en usuarios, igual se lista la inscripción. Excluir solo no-asesores con usuario existente.
         $sql = 'SELECT ca.id_asignacion, ca.cedula_asesor, ca.id_curso, ca.fecha_asignacion,
                        ca.estado_capacitacion, ca.progreso_porcentaje, ca.calificacion_obtenida, ca.fecha_completado,
-                       u.nombre AS nombre_asesor
+                       u.nombre AS nombre_asesor' . $colEmpresa . '
                 FROM capacitaciones_asignadas ca
                 LEFT JOIN usuarios u ON u.cedula = ca.cedula_asesor
                 WHERE ca.id_curso = :c
@@ -30,14 +76,11 @@ class CoordinadorReporte
         $st = $pdo->prepare($sql);
         $st->execute(['c' => $idCurso]);
         $asesores = $st->fetchAll();
-        // #region agent log
-        debug_log('CoordinadorReporte::asesoresPorCurso', 'tras_query_asesores', ['n' => count($asesores)], 'run1', 'H5');
-        // #endregion
-
         $modulos = ModuloCurso::porCurso($pdo, $idCurso);
         $idModulos = [];
         foreach ($modulos as $m) {
             $idM = (int) ($m['id_modulo'] ?? 0);
+
             if ($idM > 0) {
                 $idModulos[] = $idM;
             }
@@ -103,6 +146,7 @@ class CoordinadorReporte
             $mods = [];
             foreach ($modulos as $m) {
                 $idM = (int) ($m['id_modulo'] ?? 0);
+
                 if ($idM <= 0) {
                     continue;
                 }
@@ -112,14 +156,16 @@ class CoordinadorReporte
                 $qok = !empty($quizAprobado[$ced][$idM]);
 
                 $pct = 0;
+
                 if ($total > 0) {
                     $pct = (int) round(($done / $total) * 100);
+
                     if ($pct > 100) {
                         $pct = 100;
                     }
                 }
                 if ($qa) {
-                    if ($total > 0 && $done >= $total && !$qok) {
+            if ($total > 0 && $done >= $total && !$qok) {
                         $pct = 99;
                     }
                     if ($qok) {
@@ -144,6 +190,7 @@ class CoordinadorReporte
         }
         unset($a);
 
+
         return ['curso' => $curso, 'asesores' => $asesores, 'modulos' => $modulos];
     }
 
@@ -152,8 +199,9 @@ class CoordinadorReporte
      *
      * @return array{curso:array<string,mixed>,filas:array<int,array<string,mixed>>,modulos:array<int,array<string,mixed>>}
      */
-    public static function reportePorCurso(PDO $pdo, array $curso, int $idCurso): array
+    public static function reportePorCurso(PDO $pdo, array $curso, int $idCurso, string $empresaFiltro = ''): array
     {
+        $empresaFiltro = self::normalizarFiltroEmpresa($empresaFiltro);
         $data = self::asesoresPorCurso($pdo, $curso, $idCurso);
         $modulos = $data['modulos'] ?? [];
         $asesores = $data['asesores'] ?? [];
@@ -161,6 +209,7 @@ class CoordinadorReporte
         $idModulos = [];
         foreach ($modulos as $m) {
             $idM = (int) ($m['id_modulo'] ?? 0);
+
             if ($idM > 0) {
                 $idModulos[] = $idM;
             }
@@ -219,6 +268,7 @@ class CoordinadorReporte
                 // Regla de completado del módulo (decisión B): si no hay clases, no cuenta como completo.
                 $okLecciones = $total > 0 && $done >= $total;
                 $okQuiz = !$qa || $qok;
+
                 if ($okLecciones && $okQuiz) {
                     $modulosCompletos++;
                 }
@@ -232,9 +282,13 @@ class CoordinadorReporte
             $evalP = is_array($eval) ? (string) ($eval['puntaje_obtenido'] ?? '') : '';
             $evalF = is_array($eval) ? (string) ($eval['fecha_intento'] ?? '') : '';
 
+            $empresa = self::empresaDesdeFila($a);
+
             $filas[] = [
                 'cedula_asesor' => $ced,
                 'nombre_asesor' => (string) ($a['nombre_asesor'] ?? ''),
+                'empresa' => $empresa,
+                'empresa_label' => self::etiquetaEmpresa($empresa),
                 'estado_capacitacion' => (string) ($a['estado_capacitacion'] ?? ''),
                 'progreso_porcentaje' => (int) ($a['progreso_porcentaje'] ?? 0),
                 'calificacion_obtenida' => (string) ($a['calificacion_obtenida'] ?? ''),
@@ -250,7 +304,20 @@ class CoordinadorReporte
             ];
         }
 
-        return ['curso' => $curso, 'filas' => $filas, 'modulos' => $modulos];
+        if ($empresaFiltro !== '') {
+            $filas = array_values(array_filter(
+                $filas,
+                static fn(array $f): bool => ($f['empresa'] ?? '') === $empresaFiltro
+            ));
+        }
+
+        return [
+            'curso' => $curso,
+            'filas' => $filas,
+            'modulos' => $modulos,
+            'filtro_empresa' => $empresaFiltro,
+            'filtro_empresa_label' => $empresaFiltro !== '' ? self::etiquetaEmpresa($empresaFiltro) : '',
+        ];
     }
 
     /**
@@ -261,6 +328,7 @@ class CoordinadorReporte
     public static function detalleAsesor(PDO $pdo, array $curso, int $idCurso, string $cedulaAsesor): array
     {
         $asig = CapacitacionAsignada::buscarPorAsesorCurso($pdo, $cedulaAsesor, $idCurso);
+
         if (!$asig) {
             return ['curso' => $curso, 'asesor' => ['cedula' => $cedulaAsesor], 'timeline' => []];
         }
@@ -333,6 +401,7 @@ class CoordinadorReporte
             $timeline,
             static fn(array $a, array $b): int => strcmp((string) ($a['ts'] ?? ''), (string) ($b['ts'] ?? ''))
         );
+
 
         return [
             'curso' => $curso,

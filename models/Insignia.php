@@ -10,6 +10,7 @@ final class Insignia
     {
         try {
             $res = $pdo->query("SHOW TABLES LIKE 'insignias_usuario'");
+
             return $res !== false && $res->fetch() !== false;
         } catch (Throwable $e) {
             return false;
@@ -46,6 +47,7 @@ final class Insignia
         }
         $st = $pdo->prepare('SELECT * FROM insignias_usuario WHERE cedula_asesor = :a ORDER BY otorgada_en DESC');
         $st->execute(['a' => $cedulaAsesor]);
+
         return $st->fetchAll();
     }
 

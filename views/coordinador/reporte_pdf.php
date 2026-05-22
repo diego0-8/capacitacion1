@@ -257,11 +257,16 @@
     <header class="doc-header">
       <h1>Reporte del curso</h1>
       <div class="doc-sub"><?php echo htmlspecialchars((string) ($curso['nombre_curso'] ?? '')); ?></div>
-      <div class="doc-meta">Generado para impresión / archivo PDF · <?php echo date('Y-m-d H:i'); ?></div>
+      <div class="doc-meta">
+        Generado para impresión / archivo PDF · <?php echo date('Y-m-d H:i'); ?>
+        <?php if (!empty($filtroEmpresaLabel)): ?>
+          · Filtro empresa: <strong><?php echo htmlspecialchars((string) $filtroEmpresaLabel); ?></strong>
+        <?php endif; ?>
+      </div>
     </header>
 
     <?php if (empty($filas)): ?>
-      <p class="empty">No hay asesores inscritos en este curso.</p>
+      <p class="empty">No hay asesores inscritos en este curso<?php echo !empty($filtroEmpresaLabel) ? ' para la empresa ' . htmlspecialchars((string) $filtroEmpresaLabel) : ''; ?>.</p>
     <?php else: ?>
       <div class="table-wrap">
         <table>
@@ -270,6 +275,7 @@
             <tr>
               <th>Asesor</th>
               <th>Estado</th>
+              <th>Empresa</th>
               <th class="num">Progreso</th>
               <th class="num">Módulos</th>
               <th class="num">Quiz</th>
@@ -285,6 +291,7 @@
                   <span class="ced">CC <?php echo htmlspecialchars((string) ($f['cedula_asesor'] ?? '')); ?></span>
                 </td>
                 <td><span class="badge-estado"><?php echo htmlspecialchars((string) ($f['estado_capacitacion'] ?? '—')); ?></span></td>
+                <td><?php echo htmlspecialchars((string) ($f['empresa_label'] ?? CoordinadorReporte::etiquetaEmpresa((string) ($f['empresa'] ?? 'onix')))); ?></td>
                 <td class="num"><?php echo (int) ($f['progreso_porcentaje'] ?? 0); ?>%</td>
                 <td class="num"><?php echo (int) ($f['modulos_completos'] ?? 0); ?> / <?php echo (int) ($f['modulos_total'] ?? 0); ?></td>
                 <td class="num"><?php echo (int) ($f['quices_aprobados'] ?? 0); ?> / <?php echo (int) ($f['quices_activos'] ?? 0); ?></td>

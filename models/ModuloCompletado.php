@@ -16,6 +16,7 @@ class ModuloCompletado
     {
         $st = $pdo->prepare('SELECT 1 FROM modulo_completado WHERE id_modulo = :m AND cedula_asesor = :c LIMIT 1');
         $st->execute(['m' => $idModulo, 'c' => $cedulaAsesor]);
+
         return (bool) $st->fetch();
     }
 }

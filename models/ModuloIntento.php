@@ -15,6 +15,7 @@ class ModuloIntento
             'ok' => $correctas,
             'a' => $aprobado ? 1 : 0,
         ]);
+
         return (int) $pdo->lastInsertId();
     }
 

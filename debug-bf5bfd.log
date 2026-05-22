@@ -1,2 +1,0 @@
-{"sessionId":"bf5bfd","runId":"pre-fix","hypothesisId":"H1","location":"models/Usuario.php:tienePinVerificacion","message":"Pin verification column check","data":{"db":"capacitacion1","count":3},"timestamp":1775839484572}
-{"sessionId":"bf5bfd","runId":"pre-fix","hypothesisId":"H1","location":"models/Usuario.php:tienePinVerificacion","message":"Pin verification column check","data":{"db":"capacitacion1","count":3},"timestamp":1775839793044}

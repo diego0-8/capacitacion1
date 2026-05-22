@@ -14,6 +14,7 @@ class CapacitacionAsignada
                 ORDER BY ca.fecha_asignacion DESC';
         $st = $pdo->prepare($sql);
         $st->execute(['c' => $cedula]);
+
         return $st->fetchAll();
     }
 
@@ -25,6 +26,7 @@ class CapacitacionAsignada
         $st = $pdo->prepare($sql);
         $st->execute(['id' => $idAsignacion]);
         $row = $st->fetch();
+
         return $row ?: null;
     }
 
@@ -34,6 +36,7 @@ class CapacitacionAsignada
         $st = $pdo->prepare($sql);
         $st->execute(['a' => $cedula, 'c' => $idCurso]);
         $row = $st->fetch();
+
         return $row ?: null;
     }
 
@@ -45,6 +48,7 @@ class CapacitacionAsignada
                 JOIN usuarios u ON u.cedula = ca.cedula_asesor 
                 JOIN cursos c ON c.id_cursos = ca.id_curso 
                 ORDER BY ca.fecha_asignacion DESC';
+
         return $pdo->query($sql)->fetchAll();
     }
 
@@ -59,6 +63,7 @@ class CapacitacionAsignada
     public static function crearYRetornarId(PDO $pdo, string $cedulaAsesor, int $idCurso): int
     {
         self::crear($pdo, $cedulaAsesor, $idCurso);
+
         return (int) $pdo->lastInsertId();
     }
 
@@ -78,5 +83,15 @@ class CapacitacionAsignada
         }
         $st = $pdo->prepare($sql);
         $st->execute(['cal' => $calificacion, 'e' => $estado, 'id' => $idAsignacion]);
+    }
+
+    /** Primera apertura de la URL del certificado: fija la fecha una sola vez por asignación. */
+    public static function registrarPrimeraDescargaCertificado(PDO $pdo, int $idAsignacion): void
+    {
+        $sql = 'UPDATE capacitaciones_asignadas
+                SET fecha_primera_descarga_certificado = NOW()
+                WHERE id_asignacion = :id AND fecha_primera_descarga_certificado IS NULL';
+        $st = $pdo->prepare($sql);
+        $st->execute(['id' => $idAsignacion]);
     }
 }

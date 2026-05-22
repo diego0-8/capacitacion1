@@ -41,13 +41,16 @@
               $img = (string) ($o['imagen_path'] ?? '');
               $txt = (string) ($o['texto'] ?? '');
               ?>
-              <label>
-                <input type="radio" name="<?php echo htmlspecialchars($name); ?>" value="<?php echo $idO; ?>" required>
-                <?php if ($img !== ''): ?>
-                  <img src="<?php echo htmlspecialchars(BASE_URL . '/' . $img); ?>" alt="" style="max-width: 320px; display: block;">
-                <?php else: ?>
-                  <span><?php echo htmlspecialchars($txt); ?></span>
-                <?php endif; ?>
+              <label class="opcion-item">
+                <input class="opcion-input" type="radio" name="<?php echo htmlspecialchars($name); ?>" value="<?php echo $idO; ?>" required>
+                <span class="opcion-body">
+                  <?php if ($img !== ''): ?>
+                    <img class="opcion-img" src="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $img)); ?>" alt="">
+                  <?php endif; ?>
+                  <?php if ($txt !== ''): ?>
+                    <span class="opcion-texto"><?php echo htmlspecialchars($txt); ?></span>
+                  <?php endif; ?>
+                </span>
               </label>
             <?php endforeach; ?>
           </div>

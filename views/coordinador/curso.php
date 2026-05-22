@@ -7,33 +7,24 @@
   <link rel="stylesheet" href="<?php echo htmlspecialchars(BASE_URL . '/assets/css/coordinador_curso.css'); ?>">
 </head>
 <body>
-  <?php $navActive = 'coord_curso'; require BASE_PATH . '/views/auth/header.php'; ?>
+  <?php
+  /**
+   * @var array<string, mixed> $curso
+   * @var array<int, array<string, mixed>> $modulos
+   * @var array<int, array<int, array<string, mixed>>> $leccionesPorModulo
+   * @var array<int, array{config: array<string, mixed>, slots: array<int, array<string, mixed>>}> $quizPorModulo
+   * @var int $idModuloAbierto
+   * @var int $idLeccionResaltada
+   * @var string|null $mensaje
+   * @var string|null $error
+   */
+  $navActive = 'coord_curso';
+  require BASE_PATH . '/views/auth/header.php';
+  $modulos = is_array($modulos ?? null) ? $modulos : [];
+  $leccionesPorModulo = is_array($leccionesPorModulo ?? null) ? $leccionesPorModulo : [];
+  $quizPorModulo = is_array($quizPorModulo ?? null) ? $quizPorModulo : [];
+  ?>
   <main>
-    <?php
-    // #region agent log
-    @file_put_contents(
-        BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
-        json_encode(
-            [
-                'sessionId' => '4338d8',
-                'runId' => 'post-fix',
-                'hypothesisId' => 'H2',
-                'location' => 'views/coordinador/curso.php:subnav',
-                'message' => 'curso subnav rendered',
-                'data' => [
-                    'idCurso' => (int) ($curso['id_cursos'] ?? 0),
-                    'hasSecondaryTopnav' => false,
-                    'usesCoordContextToolbar' => true,
-                    'request' => (string) ($_SERVER['REQUEST_URI'] ?? ''),
-                ],
-                'timestamp' => (int) round(microtime(true) * 1000),
-            ],
-            JSON_UNESCAPED_UNICODE
-        ) . PHP_EOL,
-        FILE_APPEND
-    );
-    // #endregion
-    ?>
     <div class="coord-context-toolbar" role="navigation" aria-label="Acciones del curso">
       <span><?php echo htmlspecialchars($curso['nombre_curso'] ?? ''); ?></span>
       <button type="button" class="btn-asesores" data-open-asesores="<?php echo (int) $curso['id_cursos']; ?>">Asesores</button>
@@ -175,13 +166,22 @@
                     <?php for ($i = 1; $i <= 3; $i++): ?>
                       <?php
                       $slot = $slots[$i] ?? null;
-                      $p = $slot['pregunta'] ?? null;
-                      $ops = $slot['opciones'] ?? [];
-                      $tipo = (string) ($p['tipo'] ?? 'vf');
-                      $enun = (string) ($p['enunciado'] ?? '');
+                      $p = is_array($slot) ? ($slot['pregunta'] ?? null) : null;
+                      $ops = is_array($slot) ? ($slot['opciones'] ?? []) : [];
+                      $tipo = is_array($p) ? (string) ($p['tipo'] ?? 'vf') : 'vf';
+                      $enun = is_array($p) ? (string) ($p['enunciado'] ?? '') : '';
+                      $corrId = is_array($slot) ? (int) ($slot['correcta'] ?? 0) : 0;
                       $byClave = [];
+                      $corrClave = '';
                       foreach ($ops as $o) {
-                          $byClave[(string) $o['clave']] = $o;
+                          if (!is_array($o)) {
+                              continue;
+                          }
+                          $clave = (string) ($o['clave'] ?? '');
+                          $byClave[$clave] = $o;
+                          if ((int) ($o['id_opcion'] ?? 0) === $corrId && $corrClave === '') {
+                              $corrClave = $clave;
+                          }
                       }
                       ?>
                       <fieldset data-q-fieldset="<?php echo $i; ?>">
@@ -201,8 +201,8 @@
                           <div data-q-block="<?php echo $i; ?>" data-q-kind="vf">
                             <strong>V/F</strong>
                             <select name="q_vf_correcta[<?php echo $i; ?>]">
-                              <option value="true">Verdadero</option>
-                              <option value="false">Falso</option>
+                              <option value="true" <?php echo $corrClave === 'true' ? 'selected' : ''; ?>>Verdadero</option>
+                              <option value="false" <?php echo $corrClave === 'false' ? 'selected' : ''; ?>>Falso</option>
                             </select>
                           </div>
                           <div data-q-block="<?php echo $i; ?>" data-q-kind="multi">
@@ -216,17 +216,27 @@
                             <label>Correcta</label>
                             <select name="q_multi_correcta[<?php echo $i; ?>]">
                               <?php foreach (['a','b','c','d'] as $k): ?>
-                                <option value="<?php echo $k; ?>"><?php echo strtoupper($k); ?></option>
+                                <option value="<?php echo $k; ?>" <?php echo $corrClave === $k ? 'selected' : ''; ?>><?php echo strtoupper($k); ?></option>
                               <?php endforeach; ?>
                             </select>
                           </div>
                           <div data-q-block="<?php echo $i; ?>" data-q-kind="imagen_par">
                             <strong>Imagen par</strong>
-                            <div>
+                            <div class="img-par">
+                              <?php
+                              $imgOk = (string) ($byClave['ok']['imagen_path'] ?? '');
+                              $imgBad = (string) ($byClave['bad']['imagen_path'] ?? '');
+                              ?>
                               <label>Imagen correcta</label>
                               <input type="file" name="q_img_ok_<?php echo $i; ?>" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                              <?php if ($imgOk !== ''): ?>
+                                <div class="img-prev"><small class="muted">Actual:</small> <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $imgOk)); ?>">Abrir</a></div>
+                              <?php endif; ?>
                               <label>Imagen incorrecta</label>
                               <input type="file" name="q_img_bad_<?php echo $i; ?>" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                              <?php if ($imgBad !== ''): ?>
+                                <div class="img-prev"><small class="muted">Actual:</small> <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $imgBad)); ?>">Abrir</a></div>
+                              <?php endif; ?>
                             </div>
                           </div>
                         </div>
@@ -314,18 +324,12 @@
           openAsesoresModal();
           fetch(asesoresUrlBase + encodeURIComponent(idCurso), { credentials: 'same-origin' })
             .then(function (r) {
-              // #region agent log
-              fetch('http://127.0.0.1:7783/ingest/030f6a8d-8a77-4dd0-9f5e-4b5381ffb3e1', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '335d18' }, body: JSON.stringify({ sessionId: '335d18', runId: 'post-fix', hypothesisId: 'H7', location: 'views/coordinador/curso.php:fetch', message: 'asesores fetch response', data: { status: r.status, ok: r.ok, idCurso: idCurso }, timestamp: Date.now() }) }).catch(function () {});
-              // #endregion
               if (!r.ok) {
                 return Promise.resolve('<p class="muted">No se pudo cargar (HTTP ' + r.status + ').</p>');
               }
               return r.text();
             })
             .then(function (html) {
-              // #region agent log
-              fetch('http://127.0.0.1:7783/ingest/030f6a8d-8a77-4dd0-9f5e-4b5381ffb3e1', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '335d18' }, body: JSON.stringify({ sessionId: '335d18', runId: 'post-fix', hypothesisId: 'H7', location: 'views/coordinador/curso.php:html', message: 'asesores body length', data: { len: html ? html.length : 0, head: html ? html.slice(0, 80) : '' }, timestamp: Date.now() }) }).catch(function () {});
-              // #endregion
               asesoresBody.innerHTML = html;
             })
             .catch(function () { asesoresBody.innerHTML = '<p class="muted">No se pudo cargar.</p>'; });
@@ -548,14 +552,14 @@
       if (lid) {
         var row = document.getElementById('coord-curso-' + lid);
         if (row) {
-          row.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+          row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
           return;
         }
       }
       if (mid) {
         var det = document.getElementById('coord-mod-' + mid);
         if (det) {
-          det.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+          det.scrollIntoView({ block: 'nearest', behavior: 'auto' });
         }
       }
     });

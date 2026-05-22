@@ -52,23 +52,83 @@ main {
 
 .curso-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.btn-asesores {
-  padding: 0.45rem 0.75rem;
-  background: #14532d;
-  color: #ecfdf5;
-  border: 1px solid rgba(20, 83, 45, 0.25);
-  border-radius: 10px;
+.curso-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.curso-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.chip-acceso {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
   font-weight: 700;
-  cursor: pointer;
+  width: fit-content;
 }
 
-.btn-asesores:hover {
+.chip-acceso--pub {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.chip-acceso--restr {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.curso-row-actions .btn-asesores {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #ecfdf5;
+  background: #14532d;
+  border: 1px solid rgba(20, 83, 45, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.curso-row-actions .btn-asesores:hover {
   background: #15803d;
+}
+
+.curso-row-actions .btn-asesores.btn-acceso {
+  background: #0f766e;
+  border-color: rgba(15, 118, 110, 0.45);
+}
+
+.curso-row-actions .btn-asesores.btn-acceso:hover {
+  background: #0d9488;
+}
+
+.curso-row-actions .btn-asesores:focus-visible {
+  outline: 2px solid rgba(187, 247, 208, 0.9);
+  outline-offset: 2px;
 }
 
 .muted { color: #64748b; }
@@ -223,4 +283,228 @@ main {
   color: #b91c1c;
   padding: 0.65rem;
   border-radius: 8px;
+}
+
+/* Modal acceso asesores */
+.acceso-modal-head .title {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.acceso-form {
+  margin-top: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.acceso-modo {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.acceso-radio {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #f8fafc;
+}
+
+.acceso-radio:has(input:checked) {
+  border-color: #15803d;
+  background: #ecfdf5;
+}
+
+.acceso-radio input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.acceso-lista-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.acceso-lista-head strong {
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.acceso-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.btn-acceso-mini {
+  padding: 0.35rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-acceso-mini:hover {
+  background: #ccfbf1;
+}
+
+.acceso-lista-wrap {
+  display: none;
+  margin-top: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: #fff;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.acceso-lista-wrap.acceso-lista-wrap--open,
+.acceso-lista-wrap:not([hidden]) {
+  display: block;
+}
+
+.acceso-check-grid {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.acceso-check {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  font-size: 0.92rem;
+  cursor: pointer;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.acceso-check:hover {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.acceso-check:has(input:checked) {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.acceso-check input[type="checkbox"] {
+  margin-top: 0.2rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  accent-color: #15803d;
+  cursor: pointer;
+}
+
+.acceso-check-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  min-width: 0;
+}
+
+.acceso-check-nombre {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.chip-estado {
+  display: inline-flex;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.chip-estado--activo {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.chip-estado--inactivo {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.acceso-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  margin-left: -1.1rem;
+  margin-right: -1.1rem;
+  margin-bottom: -1.1rem;
+  padding-left: 1.1rem;
+  padding-right: 1.1rem;
+  padding-bottom: 1.1rem;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+}
+
+.btn-acceso-guardar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 10rem;
+  padding: 0.7rem 1.35rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #ecfdf5;
+  background: linear-gradient(135deg, #14532d 0%, #15803d 100%);
+  border: 1px solid rgba(20, 83, 45, 0.4);
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(20, 83, 45, 0.25);
+  transition: filter 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.btn-acceso-guardar:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(20, 83, 45, 0.3);
+}
+
+.btn-acceso-guardar:focus-visible {
+  outline: 2px solid rgba(187, 247, 208, 0.9);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

@@ -17,6 +17,7 @@ class LeccionCompletado
     {
         $st = $pdo->prepare('SELECT 1 FROM leccion_completado WHERE id_leccion = :l AND cedula_asesor = :a LIMIT 1');
         $st->execute(['l' => $idLeccion, 'a' => $cedulaAsesor]);
+
         return (bool) $st->fetchColumn();
     }
 

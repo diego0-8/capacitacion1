@@ -154,7 +154,9 @@
                 $ruta = (string) ($leccionSeleccionada['ruta_video'] ?? '');
                 $idLeccionSel = (int) ($leccionSeleccionada['id_leccion'] ?? 0);
                 $yaCompleta = $idLeccionSel > 0 && !empty($leccionesCompletadasSet) && isset($leccionesCompletadasSet[$idLeccionSel]);
-                $autoCompleta = ($img !== '' && $vid !== '');
+                $tieneImg = $img !== '';
+                $tieneVid = $vid !== '';
+                $mostrarBotonMarcar = !$tieneImg && !$tieneVid;
                 ?>
                 <?php if (!empty($leccionSeleccionada['contenido'])): ?>
                   <div class="mb-3">
@@ -183,7 +185,7 @@
                 <?php else: ?>
                   <?php if ($img !== ''): ?>
                     <div class="mb-3">
-                      <div class="flip-img" role="button" tabindex="0" aria-label="Ver imagen interactiva">
+                      <div class="flip-img" role="button" tabindex="0" aria-label="Ver imagen interactiva" data-flip-track="1">
                         <div class="flip-inner">
                           <div class="flip-front">
                             <img class="img-fluid rounded w-100" src="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $img)); ?>" alt="">
@@ -198,7 +200,7 @@
                   <?php endif; ?>
                   <?php if ($vid !== ''): ?>
                     <div class="mb-3">
-                      <video class="w-100 rounded" src="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $vid)); ?>" controls></video>
+                      <video class="w-100 rounded" src="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $vid)); ?>" controls data-video-track="1"></video>
                     </div>
                   <?php endif; ?>
                 <?php endif; ?>
@@ -211,15 +213,20 @@
                 <form id="form-completar" method="post" action="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=asesor&a=leccion_completar'); ?>">
                   <input type="hidden" name="id_asignacion" value="<?php echo (int) $asignacion['id_asignacion']; ?>">
                   <input type="hidden" name="id_leccion" value="<?php echo $idLeccionSel; ?>">
-                  <?php if ($autoCompleta): ?>
-                    <div class="alert alert-secondary mb-0">
-                      
-                      <?php if ($yaCompleta): ?>
-                        <div class="mt-2"><span class="badge text-bg-success">Completada ✓</span></div>
+                  <?php if ($yaCompleta): ?>
+                    <div class="mt-2"><span class="badge text-bg-success">Completada ✓</span></div>
+                  <?php elseif ($mostrarBotonMarcar): ?>
+                    <button type="submit" class="btn btn-success">Marcar como vista</button>
+                  <?php else: ?>
+                    <div class="alert alert-light border mb-0 small text-muted">
+                      <?php if ($tieneImg && $tieneVid): ?>
+                        Gira la imagen (clic) y termina de ver el video para marcar la clase como vista.
+                      <?php elseif ($tieneImg): ?>
+                        Haz clic en la imagen para girarla y marcar la clase como vista.
+                      <?php else: ?>
+                        Termina de ver el video para marcar la clase como vista.
                       <?php endif; ?>
                     </div>
-                  <?php else: ?>
-                    <button type="submit" class="btn btn-success">Marcar como vista</button>
                   <?php endif; ?>
                 </form>
               <?php endif; ?>
@@ -228,7 +235,25 @@
 
           <?php if (($asignacion['estado_capacitacion'] ?? '') === 'evaluacion_pendiente'): ?>
             <div class="mt-3">
-              <a class="btn btn-outline-primary" href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=asesor&a=evaluacion&id=' . (int) $asignacion['id_asignacion']); ?>">Realizar evaluación final del curso</a>
+              <?php
+              $cursoEvalEstado = is_array($cursoEvalEstado ?? null) ? $cursoEvalEstado : ['available' => false, 'reason' => 'missing'];
+              $cursoEvalAvailable = !empty($cursoEvalEstado['available']);
+              $cursoEvalReason = (string) ($cursoEvalEstado['reason'] ?? 'missing');
+              ?>
+              <?php if ($cursoEvalAvailable): ?>
+                <a class="btn btn-outline-primary" href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=asesor&a=evaluacion&id=' . (int) $asignacion['id_asignacion']); ?>">Realizar evaluación final del curso</a>
+              <?php else: ?>
+                <button class="btn btn-outline-secondary" type="button" disabled>Realizar evaluación final del curso</button>
+                <div class="small text-muted mt-2">
+                  <?php if ($cursoEvalReason === 'new_inactive'): ?>
+                    El coordinador ya cargó la evaluación final, pero aún no la ha habilitado.
+                  <?php elseif ($cursoEvalReason === 'new_incomplete'): ?>
+                    El coordinador aún no completa la evaluación final del curso.
+                  <?php else: ?>
+                    El coordinador aún no ha cargado preguntas para este curso.
+                  <?php endif; ?>
+                </div>
+              <?php endif; ?>
             </div>
           <?php endif; ?>
         </section>
@@ -290,6 +315,17 @@
     <?php endif; ?>
 
   </main>
+  <?php
+  $jsNeedFlip = false;
+  $jsNeedVideoEnd = false;
+  $jsYaCompleta = false;
+  if (!empty($leccionSeleccionada)) {
+      $jsNeedFlip = ((string) ($leccionSeleccionada['imagen_path'] ?? '')) !== '';
+      $jsNeedVideoEnd = ((string) ($leccionSeleccionada['video_path'] ?? '')) !== '';
+      $idLecJs = (int) ($leccionSeleccionada['id_leccion'] ?? 0);
+      $jsYaCompleta = $idLecJs > 0 && !empty($leccionesCompletadasSet) && isset($leccionesCompletadasSet[$idLecJs]);
+  }
+  ?>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
   (function () {
@@ -322,16 +358,19 @@
       toggleFlip(flip);
     });
 
-    // Auto-completar: cuando haya video+imagen, completar al terminar video + girar imagen (1 vez)
+    // Auto-completar según material: solo imagen (voltear), solo video (ended), imagen+video (ambos)
     var videoVisto = false;
-    var imagenGiradas = false;
-    var yaCompleta = <?php echo !empty($yaCompleta) ? 'true' : 'false'; ?>;
-    var autoCompleta = <?php echo !empty($autoCompleta) ? 'true' : 'false'; ?>;
+    var imagenVolteada = false;
+    var yaCompleta = <?php echo $jsYaCompleta ? 'true' : 'false'; ?>;
+    var needFlip = <?php echo $jsNeedFlip ? 'true' : 'false'; ?>;
+    var needVideoEnd = <?php echo $jsNeedVideoEnd ? 'true' : 'false'; ?>;
+    var autoInteractivo = needFlip || needVideoEnd;
     var enviando = false;
 
     function intentarCompletar() {
-      if (!autoCompleta || yaCompleta || enviando) return;
-      if (!videoVisto || !imagenGiradas) return;
+      if (!autoInteractivo || yaCompleta || enviando) return;
+      if (needFlip && !imagenVolteada) return;
+      if (needVideoEnd && !videoVisto) return;
       var form = document.getElementById('form-completar');
       if (!form) return;
       enviando = true;
@@ -350,12 +389,12 @@
     var flipTrack = document.querySelector('.flip-img[data-flip-track="1"]');
     if (flipTrack) {
       flipTrack.addEventListener('click', function () {
-        imagenGiradas = true;
+        imagenVolteada = true;
         intentarCompletar();
       });
       flipTrack.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') {
-          imagenGiradas = true;
+          imagenVolteada = true;
           intentarCompletar();
         }
       });

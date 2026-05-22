@@ -4,6 +4,22 @@ declare(strict_types=1);
 
 class CoordinadorController extends Controller
 {
+    private const CURSO_EVAL_MAX_SLOTS = 10;
+
+    private static function dbHasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        $st = $pdo->prepare(
+            'SELECT COUNT(*) AS n
+             FROM information_schema.columns
+             WHERE table_schema = :db
+               AND table_name = :t
+               AND column_name = :c'
+        );
+        $st->execute(['db' => DB_NAME, 't' => $table, 'c' => $column]);
+        $row = $st->fetch();
+
+        return (int) ($row['n'] ?? 0) > 0;
+    }
     /**
      * Solo el coordinador cuya cédula coincide con cursos.cedula_coordinador
      * (asignada por el administrador) puede gestionar ese curso; el resto no lo ve ni accede por URL.
@@ -11,6 +27,7 @@ class CoordinadorController extends Controller
     private function asegurarCurso(PDO $pdo, int $idCurso): ?array
     {
         $curso = Curso::buscar($pdo, $idCurso);
+
         if ($curso === null) {
             return null;
         }
@@ -23,6 +40,7 @@ class CoordinadorController extends Controller
     private function redirectVistaCurso(int $idCurso, int $idModulo = 0, int $idLeccion = 0): void
     {
         $q = '?c=coordinador&a=curso&id=' . $idCurso;
+
         if ($idModulo > 0) {
             $q .= '&id_modulo=' . $idModulo;
         }
@@ -36,8 +54,23 @@ class CoordinadorController extends Controller
     {
         $this->requireAuth(['coordinador']);
         $pdo = getPDO();
+        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
+        $cursos = Curso::porCoordinador($pdo, $cedula);
+        $accesoPorCurso = [];
+        foreach ($cursos as $c) {
+            $idC = (int) ($c['id_cursos'] ?? 0);
+            if ($idC <= 0) {
+                continue;
+            }
+            $accesoPorCurso[$idC] = [
+                'modo' => CursoAccesoAsesor::modoAcceso($pdo, $idC),
+                'n_permitidos' => CursoAccesoAsesor::contarPermitidos($pdo, $idC),
+            ];
+        }
         $this->render('coordinador/index', [
-            'cursos' => Curso::porCoordinador($pdo, $_SESSION['usuario_cedula']),
+            'cursos' => $cursos,
+            'accesoPorCurso' => $accesoPorCurso,
+            'migracionAccesoOk' => CursoAccesoAsesor::tieneMigracion($pdo),
             'mensaje' => $this->flash('ok'),
             'error' => $this->flash('error'),
         ]);
@@ -47,26 +80,9 @@ class CoordinadorController extends Controller
     {
         $this->requireAuth(['coordinador']);
         $pdo = getPDO();
-        // #region agent log
-        @file_put_contents(
-            BASE_PATH . DIRECTORY_SEPARATOR . 'debug-4338d8.log',
-            json_encode(
-                [
-                    'sessionId' => '4338d8',
-                    'runId' => 'run1',
-                    'hypothesisId' => 'Hloop',
-                    'location' => 'controllers/CoordinadorController.php:reportes',
-                    'message' => 'enter reportes',
-                    'data' => ['request' => (string) ($_SERVER['REQUEST_URI'] ?? '')],
-                    'timestamp' => (int) round(microtime(true) * 1000),
-                ],
-                JSON_UNESCAPED_UNICODE
-            ) . PHP_EOL,
-            FILE_APPEND
-        );
-        // #endregion
+        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
         $this->render('coordinador/reportes', [
-            'cursos' => Curso::porCoordinador($pdo, $_SESSION['usuario_cedula']),
+            'cursos' => Curso::porCoordinador($pdo, $cedula),
             'mensaje' => $this->flash('ok'),
             'error' => $this->flash('error'),
         ]);
@@ -77,43 +93,94 @@ class CoordinadorController extends Controller
         $this->requireAuth(['coordinador']);
         $pdo = getPDO();
         $idCurso = (int) ($_GET['id_curso'] ?? 0);
-        // #region agent log
-        debug_log('CoordinadorController::asesores', 'enter', ['idCurso' => $idCurso], 'run1', 'H1');
-        // #endregion
         $curso = $this->asegurarCurso($pdo, $idCurso);
+
         if ($curso === null) {
-            // #region agent log
-            debug_log('CoordinadorController::asesores', 'curso_denegado', ['idCurso' => $idCurso], 'run1', 'H2');
-            // #endregion
             http_response_code(403);
+
             echo 'No disponible.';
             return;
         }
         try {
             $data = CoordinadorReporte::asesoresPorCurso($pdo, $curso, $idCurso);
-            // #region agent log
-            debug_log(
-                'CoordinadorController::asesores',
-                'ok',
-                ['idCurso' => $idCurso, 'nAsesores' => count($data['asesores'] ?? [])],
-                'post-fix',
-                'H3'
-            );
-            // #endregion
             $this->render('coordinador/asesores_modal', $data);
         } catch (Throwable $e) {
-            // #region agent log
-            debug_log(
-                'CoordinadorController::asesores',
-                'exception',
-                ['idCurso' => $idCurso, 'type' => get_class($e), 'code' => (string) $e->getCode()],
-                'run1',
-                'H4'
-            );
-            // #endregion
             http_response_code(500);
+
             echo '<p class="muted">No se pudo cargar la lista (error del servidor).</p>';
         }
+    }
+
+    public function acceso_asesores_form(): void
+    {
+        $this->requireAuth(['coordinador']);
+        $pdo = getPDO();
+        $idCurso = (int) ($_GET['id_curso'] ?? 0);
+        $curso = $this->asegurarCurso($pdo, $idCurso);
+        if ($curso === null) {
+            http_response_code(403);
+            echo 'No disponible.';
+            return;
+        }
+        $this->render('coordinador/acceso_asesores_modal', [
+            'curso' => $curso,
+            'accesoActual' => CursoAccesoAsesor::modoAcceso($pdo, $idCurso),
+            'permitidos' => CursoAccesoAsesor::listarPermitidos($pdo, $idCurso),
+            'asesores' => Usuario::listarTodosAsesores($pdo),
+            'migracionOk' => CursoAccesoAsesor::tieneMigracion($pdo),
+        ]);
+    }
+
+    public function acceso_asesores_guardar(): void
+    {
+        $this->requireAuth(['coordinador']);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        $pdo = getPDO();
+        $idCurso = (int) ($_POST['id_curso'] ?? 0);
+        $curso = $this->asegurarCurso($pdo, $idCurso);
+        if ($curso === null) {
+            $this->flash('error', 'Curso no permitido.');
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        if (!CursoAccesoAsesor::tieneMigracion($pdo)) {
+            $this->flash(
+                'error',
+                'Falta la migración de acceso. Ejecute database/migration_curso_acceso_asesor.sql en la base capacitacion1.'
+            );
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $modo = ($_POST['acceso_asesores'] ?? '') === 'restringido' ? 'restringido' : 'publico';
+        $listaAsesores = Usuario::listarTodosAsesores($pdo);
+        $cedulasRaw = isset($_POST['cedulas_asesor']) && is_array($_POST['cedulas_asesor'])
+            ? $_POST['cedulas_asesor']
+            : [];
+        $cedulas = CursoAccesoAsesor::filtrarCedulasAsesores($cedulasRaw, $listaAsesores);
+
+        if ($modo === 'restringido' && $cedulas === []) {
+            $this->flash('error', 'En modo restringido debe seleccionar al menos un asesor.');
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        try {
+            CursoAccesoAsesor::establecerModo($pdo, $idCurso, $modo);
+            if ($modo === 'restringido') {
+                CursoAccesoAsesor::sincronizarPermitidos($pdo, $idCurso, $cedulas);
+                CursoAccesoAsesor::asegurarAsignaciones($pdo, $idCurso, $cedulas);
+            }
+            $this->flash('ok', $modo === 'publico'
+                ? 'Acceso actualizado: todos los asesores pueden ver e inscribirse en el curso.'
+                : 'Acceso restringido guardado. Los asesores seleccionados fueron asignados al curso.');
+        } catch (Throwable $e) {
+            $this->flash('error', 'No se pudo guardar la configuración de acceso.');
+        }
+        $this->redirect('?c=coordinador&a=index');
     }
 
     public function curso(): void
@@ -121,12 +188,11 @@ class CoordinadorController extends Controller
         $this->requireAuth(['coordinador']);
         $pdo = getPDO();
         $id = (int) ($_GET['id'] ?? 0);
-        // #region agent log
-        debug_log('controllers/CoordinadorController.php:curso', 'enter', ['idCurso' => $id, 'role' => 'coordinador'], 'pre-fix', 'H1');
-        // #endregion
         $curso = $this->asegurarCurso($pdo, $id);
+
         if ($curso === null) {
             $this->flash('error', 'Curso no disponible.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
@@ -136,6 +202,7 @@ class CoordinadorController extends Controller
         $quizPorModulo = [];
         foreach ($modulos as $m) {
             $idModulo = (int) ($m['id_modulo'] ?? 0);
+
             if ($idModulo > 0) {
                 $leccionesPorModulo[$idModulo] = Leccion::porModulo($pdo, $idModulo);
                 $cfg = ModuloQuiz::getConfig($pdo, $idModulo);
@@ -143,6 +210,7 @@ class CoordinadorController extends Controller
                 $slots = [];
                 foreach ($pregs as $p) {
                     $orden = (int) ($p['orden'] ?? 0);
+
                     if ($orden < 1 || $orden > 3) {
                         continue;
                     }
@@ -159,8 +227,10 @@ class CoordinadorController extends Controller
         $idModuloCtx = (int) ($_GET['id_modulo'] ?? 0);
         $idModuloAbierto = 0;
         $idLeccionResaltada = 0;
+
         if ($idLeccionCtx > 0) {
             $lecCtx = Leccion::buscar($pdo, $idLeccionCtx);
+
             if ($lecCtx && (int) ($lecCtx['id_curso'] ?? 0) === $id) {
                 $idModuloAbierto = (int) ($lecCtx['id_modulo'] ?? 0);
                 $idLeccionResaltada = $idLeccionCtx;
@@ -168,7 +238,7 @@ class CoordinadorController extends Controller
         }
         if ($idModuloAbierto <= 0 && $idModuloCtx > 0) {
             foreach ($modulos as $mx) {
-                if ((int) ($mx['id_modulo'] ?? 0) === $idModuloCtx) {
+            if ((int) ($mx['id_modulo'] ?? 0) === $idModuloCtx) {
                     $idModuloAbierto = $idModuloCtx;
                     break;
                 }
@@ -177,22 +247,6 @@ class CoordinadorController extends Controller
         if ($idModuloAbierto <= 0 && !empty($modulos)) {
             $idModuloAbierto = (int) ($modulos[0]['id_modulo'] ?? 0);
         }
-
-        // #region agent log
-        debug_log(
-            'controllers/CoordinadorController.php:curso',
-            'loaded',
-            [
-                'idCurso' => $id,
-                'modules' => count($modulos),
-                'lessonsModuleKeys' => count($leccionesPorModulo),
-                'idModuloAbierto' => $idModuloAbierto,
-                'idLeccionResaltada' => $idLeccionResaltada,
-            ],
-            'pre-fix',
-            'H1'
-        );
-        // #endregion
         $this->render('coordinador/curso', [
             'curso' => $curso,
             'modulos' => $modulos,
@@ -208,45 +262,42 @@ class CoordinadorController extends Controller
     public function modulo_crear(): void
     {
         $this->requireAuth(['coordinador']);
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->redirect('?c=coordinador&a=index');
             return;
         }
         $pdo = getPDO();
         $idCurso = (int) ($_POST['id_curso'] ?? 0);
-        // #region agent log
-        debug_log('controllers/CoordinadorController.php:modulo_crear', 'enter', ['idCurso' => $idCurso], 'pre-fix', 'H2');
-        // #endregion
         if ($this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'Curso no permitido.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
 
         $titulo = trim((string) ($_POST['titulo_modulo'] ?? ''));
+
         if ($titulo === '') {
             $this->flash('error', 'El título del módulo es obligatorio.');
+
             $this->redirectVistaCurso($idCurso);
             return;
         }
         if (strlen($titulo) > 150) {
             $this->flash('error', 'El título es demasiado largo (máx. 150).');
+
             $this->redirectVistaCurso($idCurso);
             return;
         }
 
         try {
             ModuloCurso::crear($pdo, $idCurso, $titulo);
+
             $this->flash('ok', 'Módulo creado.');
-            // #region agent log
-            debug_log('controllers/CoordinadorController.php:modulo_crear', 'ok', ['idCurso' => $idCurso], 'pre-fix', 'H2');
-            // #endregion
-        } catch (Throwable $e) {
-            $this->flash('error', 'No se pudo crear el módulo.');
-            // #region agent log
-            debug_log('controllers/CoordinadorController.php:modulo_crear', 'err', ['idCurso' => $idCurso, 'type' => get_class($e)], 'pre-fix', 'H2');
-            // #endregion
         }
+            catch (Throwable $e) {
+            $this->flash('error', 'No se pudo crear el módulo.');        }
         $this->redirectVistaCurso($idCurso);
     }
 
@@ -255,26 +306,32 @@ class CoordinadorController extends Controller
         $this->requireAuth(['coordinador']);
         $pdo = getPDO();
         $idCurso = (int) ($_GET['id_curso'] ?? 0);
+
         if ($this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'Curso no permitido.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
         $idModulo = (int) ($_GET['id_modulo'] ?? 0);
+
         if ($idModulo <= 0) {
             $this->flash('error', 'Módulo inválido.');
+
             $this->redirectVistaCurso($idCurso);
             return;
         }
         $row = ModuloCurso::eliminar($pdo, $idModulo, $idCurso);
+
         $this->flash($row ? 'ok' : 'error', $row ? 'Módulo eliminado.' : 'No se pudo eliminar.');
+
         $this->redirectVistaCurso($idCurso);
     }
 
     /** @return array{ok:bool,path?:string,error?:string} */
     private function guardarArchivoLeccionOpcional(int $idCurso): array
     {
-        if (empty($_FILES['archivo']) || $_FILES['archivo']['error'] === UPLOAD_ERR_NO_FILE) {
+            if (empty($_FILES['archivo']) || $_FILES['archivo']['error'] === UPLOAD_ERR_NO_FILE) {
             return ['ok' => true, 'path' => null];
         }
         return $this->guardarArchivoCurso($idCurso);
@@ -283,7 +340,7 @@ class CoordinadorController extends Controller
     /** @return array{ok:bool,path?:string,error?:string} */
     private function guardarMediaLeccionOpcional(int $idCurso, string $inputName, array $extsPermitidas, int $maxBytes): array
     {
-        if (empty($_FILES[$inputName]) || $_FILES[$inputName]['error'] === UPLOAD_ERR_NO_FILE) {
+            if (empty($_FILES[$inputName]) || $_FILES[$inputName]['error'] === UPLOAD_ERR_NO_FILE) {
             return ['ok' => true, 'path' => null];
         }
         if ($_FILES[$inputName]['error'] !== UPLOAD_ERR_OK) {
@@ -293,18 +350,21 @@ class CoordinadorController extends Controller
             return ['ok' => false, 'error' => 'El archivo supera el tamaño permitido.'];
         }
         $ext = strtolower(pathinfo((string) ($_FILES[$inputName]['name'] ?? ''), PATHINFO_EXTENSION));
+
         if (!in_array($ext, $extsPermitidas, true)) {
             return ['ok' => false, 'error' => 'Tipo de archivo no permitido.'];
         }
 
         $dirBase = BASE_PATH . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'lecciones';
         $dir = $dirBase . DIRECTORY_SEPARATOR . $idCurso;
+
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
             return ['ok' => false, 'error' => 'No se pudo crear la carpeta de uploads.'];
         }
 
         $safe = self::sanitizeFilename((string) $_FILES[$inputName]['name']);
         $dest = $dir . DIRECTORY_SEPARATOR . time() . '_' . $safe;
+
         if (!move_uploaded_file($_FILES[$inputName]['tmp_name'], $dest)) {
             return ['ok' => false, 'error' => 'No se pudo guardar el archivo.'];
         }
@@ -314,6 +374,7 @@ class CoordinadorController extends Controller
     public function leccion_crear(): void
     {
         $this->requireAuth(['coordinador']);
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->redirect('?c=coordinador&a=index');
             return;
@@ -321,25 +382,26 @@ class CoordinadorController extends Controller
         $pdo = getPDO();
         $idCurso = (int) ($_POST['id_curso'] ?? 0);
         $idModulo = (int) ($_POST['id_modulo'] ?? 0);
-        // #region agent log
-        debug_log('controllers/CoordinadorController.php:leccion_crear', 'enter', ['idCurso' => $idCurso, 'idModulo' => $idModulo], 'pre-fix', 'H3');
-        // #endregion
         if ($this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'Curso no permitido.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
 
         if ($idModulo <= 0) {
             $this->flash('error', 'Módulo inválido.');
+
             $this->redirectVistaCurso($idCurso);
             return;
         }
 
         $titulo = trim((string) ($_POST['titulo_leccion'] ?? ''));
         $contenido = trim((string) ($_POST['contenido'] ?? ''));
+
         if ($titulo === '') {
             $this->flash('error', 'El título (ej. 1.1 …) es obligatorio.');
+
             $this->redirectVistaCurso($idCurso, $idModulo);
             return;
         }
@@ -351,24 +413,25 @@ class CoordinadorController extends Controller
 
         $orden = Leccion::siguienteOrdenPorModulo($pdo, $idModulo);
         $idNueva = Leccion::crear($pdo, $idCurso, $idModulo, $titulo, $contenido, $imagenPath, $imagenTexto, $videoPath, $orden, 0);
+
         $this->flash('ok', 'Clase/curso agregado al módulo.');
-        // #region agent log
-        debug_log('controllers/CoordinadorController.php:leccion_crear', 'ok', ['idCurso' => $idCurso, 'idModulo' => $idModulo, 'orden' => $orden], 'pre-fix', 'H3');
-        // #endregion
         $this->redirectVistaCurso($idCurso, $idModulo, $idNueva);
     }
 
     public function leccion_actualizar(): void
     {
         $this->requireAuth(['coordinador']);
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->redirect('?c=coordinador&a=index');
             return;
         }
         $pdo = getPDO();
         $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
         if ($this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'Curso no permitido.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
@@ -377,40 +440,50 @@ class CoordinadorController extends Controller
         $titulo = trim((string) ($_POST['titulo_leccion'] ?? ''));
         $contenido = trim((string) ($_POST['contenido'] ?? ''));
         $imagenTexto = trim((string) ($_POST['imagen_texto'] ?? ''));
+
         if ($idModulo <= 0 || $idLeccion <= 0) {
             $this->flash('error', 'Datos inválidos.');
+
             $this->redirectVistaCurso($idCurso);
             return;
         }
         if ($titulo === '') {
             $this->flash('error', 'El título es obligatorio.');
+
             $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
             return;
         }
 
         if ($contenido === '') {
             $this->flash('error', 'El cuadro de texto (descripción) es obligatorio.');
+
             $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
             return;
         }
 
         try {
             $leccion = Leccion::buscar($pdo, $idLeccion);
+
             if (!$leccion || (int) $leccion['id_curso'] !== $idCurso || (int) $leccion['id_modulo'] !== $idModulo) {
-                $this->flash('error', 'No se pudo actualizar.');
+            $this->flash('error', 'No se pudo actualizar.');
+
                 $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
                 return;
             }
 
             $imgUp = $this->guardarMediaLeccionOpcional($idCurso, 'imagen', ['jpg', 'jpeg', 'png'], 8 * 1024 * 1024);
+
             if (!$imgUp['ok']) {
-                $this->flash('error', $imgUp['error'] ?? 'Error al subir imagen.');
+            $this->flash('error', $imgUp['error'] ?? 'Error al subir imagen.');
+
                 $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
                 return;
             }
             $vidUp = $this->guardarMediaLeccionOpcional($idCurso, 'video', ['mp4'], 80 * 1024 * 1024);
+
             if (!$vidUp['ok']) {
-                $this->flash('error', $vidUp['error'] ?? 'Error al subir video.');
+            $this->flash('error', $vidUp['error'] ?? 'Error al subir video.');
+
                 $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
                 return;
             }
@@ -420,8 +493,11 @@ class CoordinadorController extends Controller
             $videoPath = ($vidUp['path'] ?? null) ?: ((string) ($leccion['video_path'] ?? '') !== '' ? (string) $leccion['video_path'] : null);
 
             $ok = Leccion::actualizar($pdo, $idLeccion, $idCurso, $idModulo, $titulo, $contenido, $imagenPath, $imagenTextoFinal, $videoPath);
+
             $this->flash($ok ? 'ok' : 'error', $ok ? 'Clase actualizada.' : 'No se pudo actualizar.');
-        } catch (Throwable $e) {
+
+        }
+            catch (Throwable $e) {
             $this->flash('error', 'No se pudo actualizar.');
         }
         $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
@@ -429,7 +505,7 @@ class CoordinadorController extends Controller
 
     private function guardarImagenQuiz(int $idCurso, string $inputName): array
     {
-        if (empty($_FILES[$inputName]) || $_FILES[$inputName]['error'] === UPLOAD_ERR_NO_FILE) {
+            if (empty($_FILES[$inputName]) || $_FILES[$inputName]['error'] === UPLOAD_ERR_NO_FILE) {
             return ['ok' => true, 'path' => null];
         }
         if ($_FILES[$inputName]['error'] !== UPLOAD_ERR_OK) {
@@ -440,58 +516,139 @@ class CoordinadorController extends Controller
         }
 
         $ext = strtolower(pathinfo($_FILES[$inputName]['name'], PATHINFO_EXTENSION));
+
         if (!in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
             return ['ok' => false, 'error' => 'Imagen no permitida (solo jpg/png).'];
         }
 
         $dirBase = BASE_PATH . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'quiz_modulo';
         $dir = $dirBase . DIRECTORY_SEPARATOR . $idCurso;
+
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
             return ['ok' => false, 'error' => 'No se pudo crear la carpeta de quiz.'];
         }
 
         $safe = self::sanitizeFilename($_FILES[$inputName]['name']);
         $dest = $dir . DIRECTORY_SEPARATOR . time() . '_' . $safe;
+
         if (!move_uploaded_file($_FILES[$inputName]['tmp_name'], $dest)) {
             return ['ok' => false, 'error' => 'No se pudo guardar la imagen.'];
         }
         return ['ok' => true, 'path' => 'uploads/quiz_modulo/' . $idCurso . '/' . basename($dest)];
     }
 
+    private function guardarImagenCursoEval(int $idCurso, string $inputName): array
+    {
+            if (empty($_FILES[$inputName]) || $_FILES[$inputName]['error'] === UPLOAD_ERR_NO_FILE) {
+            return ['ok' => true, 'path' => null];
+        }
+        if ($_FILES[$inputName]['error'] !== UPLOAD_ERR_OK) {
+            return ['ok' => false, 'error' => 'Error al subir la imagen.'];
+        }
+        if ($_FILES[$inputName]['size'] > UPLOAD_MAX_BYTES) {
+            return ['ok' => false, 'error' => 'La imagen supera el tamaño permitido.'];
+        }
+
+        $ext = strtolower(pathinfo($_FILES[$inputName]['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+            return ['ok' => false, 'error' => 'Imagen no permitida (solo jpg/png).'];
+        }
+
+        $dirBase = BASE_PATH . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'quiz_curso';
+        $dir = $dirBase . DIRECTORY_SEPARATOR . $idCurso;
+
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return ['ok' => false, 'error' => 'No se pudo crear la carpeta de evaluación.'];
+        }
+
+        $safe = self::sanitizeFilename($_FILES[$inputName]['name']);
+        $dest = $dir . DIRECTORY_SEPARATOR . time() . '_' . $safe;
+
+        if (!move_uploaded_file($_FILES[$inputName]['tmp_name'], $dest)) {
+            return ['ok' => false, 'error' => 'No se pudo guardar la imagen.'];
+        }
+        return ['ok' => true, 'path' => 'uploads/quiz_curso/' . $idCurso . '/' . basename($dest)];
+    }
+
+    /** @return array{ok:bool,path?:string|null,error?:string} */
+    private function guardarImagenEvalCurso(int $idCurso, string $inputName): array
+    {
+            if (empty($_FILES[$inputName]) || $_FILES[$inputName]['error'] === UPLOAD_ERR_NO_FILE) {
+            return ['ok' => true, 'path' => null];
+        }
+        if ($_FILES[$inputName]['error'] !== UPLOAD_ERR_OK) {
+            return ['ok' => false, 'error' => 'Error al subir la imagen.'];
+        }
+        if ($_FILES[$inputName]['size'] > UPLOAD_MAX_BYTES) {
+            return ['ok' => false, 'error' => 'La imagen supera el tamaño permitido.'];
+        }
+
+        $ext = strtolower(pathinfo($_FILES[$inputName]['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+            return ['ok' => false, 'error' => 'Imagen no permitida (solo jpg/png).'];
+        }
+
+        $dirBase = BASE_PATH . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'eval_curso';
+        $dir = $dirBase . DIRECTORY_SEPARATOR . $idCurso;
+
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return ['ok' => false, 'error' => 'No se pudo crear la carpeta de evaluación.'];
+        }
+
+        $safe = self::sanitizeFilename($_FILES[$inputName]['name']);
+        $dest = $dir . DIRECTORY_SEPARATOR . time() . '_' . $safe;
+
+        if (!move_uploaded_file($_FILES[$inputName]['tmp_name'], $dest)) {
+            return ['ok' => false, 'error' => 'No se pudo guardar la imagen.'];
+        }
+
+        return ['ok' => true, 'path' => 'uploads/eval_curso/' . $idCurso . '/' . basename($dest)];
+    }
+
     public function modulo_quiz_guardar(): void
     {
         $this->requireAuth(['coordinador']);
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->redirect('?c=coordinador&a=index');
             return;
         }
         $pdo = getPDO();
         $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
         if ($this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'Curso no permitido.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
         $idModulo = (int) ($_POST['id_modulo'] ?? 0);
+
         if ($idModulo <= 0) {
             $this->flash('error', 'Módulo inválido.');
+
             $this->redirectVistaCurso($idCurso);
             return;
         }
 
         $req = (int) ($_POST['preguntas_requeridas'] ?? 1);
         $activo = !empty($_POST['quiz_activo']) ? 1 : 0;
+
         ModuloQuiz::upsertConfig($pdo, $idModulo, $req, $activo);
 
         // Guardar preguntas 1..3
         for ($orden = 1; $orden <= 3; $orden++) {
             $tipo = (string) ($_POST['q_tipo'][$orden] ?? '');
             $enun = (string) ($_POST['q_enunciado'][$orden] ?? '');
+
             if (!in_array($tipo, ['imagen_par', 'vf', 'multi'], true)) {
                 continue;
             }
 
             $idPregunta = ModuloQuiz::setPregunta($pdo, $idModulo, $orden, $tipo, $enun);
+
 
             if ($tipo === 'vf') {
                 ModuloQuiz::replaceOpciones($pdo, $idPregunta, [
@@ -504,12 +661,14 @@ class CoordinadorController extends Controller
                     $map[(string) $o['clave']] = (int) $o['id_opcion'];
                 }
                 $corr = (string) ($_POST['q_vf_correcta'][$orden] ?? 'true');
+
                 ModuloQuiz::setRespuestaCorrecta($pdo, $idPregunta, $map[$corr] ?? $map['true']);
             } elseif ($tipo === 'multi') {
                 $a = (string) ($_POST['q_multi_a'][$orden] ?? '');
                 $b = (string) ($_POST['q_multi_b'][$orden] ?? '');
                 $c = (string) ($_POST['q_multi_c'][$orden] ?? '');
                 $d = (string) ($_POST['q_multi_d'][$orden] ?? '');
+
                 ModuloQuiz::replaceOpciones($pdo, $idPregunta, [
                     ['clave' => 'a', 'texto' => $a],
                     ['clave' => 'b', 'texto' => $b],
@@ -522,10 +681,12 @@ class CoordinadorController extends Controller
                     $map[(string) $o['clave']] = (int) $o['id_opcion'];
                 }
                 $corr = (string) ($_POST['q_multi_correcta'][$orden] ?? 'a');
+
                 ModuloQuiz::setRespuestaCorrecta($pdo, $idPregunta, $map[$corr] ?? $map['a']);
             } else { // imagen_par
                 $okImg = $this->guardarImagenQuiz($idCurso, 'q_img_ok_' . $orden);
                 $badImg = $this->guardarImagenQuiz($idCurso, 'q_img_bad_' . $orden);
+
                 if (!$okImg['ok'] || !$badImg['ok']) {
                     $this->flash('error', $okImg['error'] ?? $badImg['error'] ?? 'No se pudo guardar imágenes.');
                     $this->redirectVistaCurso($idCurso, $idModulo);
@@ -545,6 +706,7 @@ class CoordinadorController extends Controller
         }
 
         $this->flash('ok', 'Evaluación del módulo guardada.');
+
         $this->redirectVistaCurso($idCurso, $idModulo);
     }
 
@@ -555,35 +717,45 @@ class CoordinadorController extends Controller
         $idLeccion = (int) ($_GET['id_leccion'] ?? 0);
         $idCurso = (int) ($_GET['id_curso'] ?? 0);
         $leccion = Leccion::buscar($pdo, $idLeccion);
+
         if (!$leccion || (int) $leccion['id_curso'] !== $idCurso || $this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'No se puede eliminar.');
+
             $this->redirectVistaCurso($idCurso);
             return;
         }
         $idModuloDel = (int) ($leccion['id_modulo'] ?? 0);
         $ruta = (string) ($leccion['ruta_video'] ?? '');
+
         if ($ruta !== '' && (str_starts_with($ruta, 'uploads/cursos/') || str_starts_with($ruta, 'uploads/coordinador/videos/'))) {
             $full = BASE_PATH . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $ruta);
+
             if (is_file($full)) {
                 @unlink($full);
             }
         }
         $img = (string) ($leccion['imagen_path'] ?? '');
+
         if ($img !== '' && str_starts_with($img, 'uploads/lecciones/')) {
             $full = BASE_PATH . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $img);
+
             if (is_file($full)) {
                 @unlink($full);
             }
         }
         $vid = (string) ($leccion['video_path'] ?? '');
+
         if ($vid !== '' && str_starts_with($vid, 'uploads/lecciones/')) {
             $full = BASE_PATH . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $vid);
+
             if (is_file($full)) {
                 @unlink($full);
             }
         }
         Leccion::eliminar($pdo, $idLeccion);
+
         $this->flash('ok', 'Clase eliminada.');
+
         $this->redirectVistaCurso($idCurso, $idModuloDel);
     }
 
@@ -594,28 +766,233 @@ class CoordinadorController extends Controller
         $id = (int) ($_GET['id'] ?? 0);
         if ($this->asegurarCurso($pdo, $id) === null) {
             $this->flash('error', 'Curso no disponible.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
+        $curso = Curso::buscar($pdo, $id);
+        $cfg = CursoEvaluacion::getConfig($pdo, $id);
+        $pregs = CursoEvaluacion::preguntasPorCurso($pdo, $id);
+        $slots = [];
+        foreach ($pregs as $p) {
+            $orden = (int) ($p['orden'] ?? 0);
+
+            if ($orden < 1) {
+                continue;
+            }
+            $idP = (int) ($p['id_pregunta_curso'] ?? 0);
+
+            if ($idP <= 0) {
+                continue;
+            }
+            $ops = CursoEvaluacion::opcionesPorPregunta($pdo, $idP);
+            $corr = CursoEvaluacion::getOpcionCorrecta($pdo, $idP);
+            $slots[$orden] = ['pregunta' => $p, 'opciones' => $ops, 'correcta' => $corr];
+        }
         $this->render('coordinador/preguntas', [
-            'curso' => Curso::buscar($pdo, $id),
-            'preguntas' => PreguntaEvaluacion::porCurso($pdo, $id),
+            'curso' => $curso,
+            'evaluacionNombre' => $curso['evaluacion_nombre'] ?? null,
+            'cursoEvalConfig' => $cfg,
+            'cursoEvalSlots' => $slots,
+            'cursoEvalMaxSlots' => self::CURSO_EVAL_MAX_SLOTS,
             'mensaje' => $this->flash('ok'),
             'error' => $this->flash('error'),
         ]);
     }
 
-    public function pregunta_guardar(): void
+    public function curso_eval_guardar(): void
     {
         $this->requireAuth(['coordinador']);
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->redirect('?c=coordinador&a=index');
             return;
         }
         $pdo = getPDO();
         $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
         if ($this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'Curso no permitido.');
+
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $req = (int) ($_POST['preguntas_requeridas'] ?? 1);
+        $activo = !empty($_POST['quiz_activo']) ? 1 : 0;
+
+        CursoEvaluacion::upsertConfig($pdo, $idCurso, $req, $activo, self::CURSO_EVAL_MAX_SLOTS);
+
+        $hasEnunImgCol = self::dbHasColumn($pdo, 'curso_eval_preguntas', 'enunciado_imagen_path');
+
+        if (!$hasEnunImgCol && !empty($_FILES)) {
+            $this->flash(
+                'error',
+                'Falta la columna enunciado_imagen_path en curso_eval_preguntas. Ejecute database/migration_add_curso_eval_enunciado_imagen.sql.'
+            );
+        }
+
+        for ($orden = 1; $orden <= self::CURSO_EVAL_MAX_SLOTS; $orden++) {
+            if ($orden > $req) {
+                CursoEvaluacion::eliminarPregunta($pdo, $idCurso, $orden);
+                continue;
+            }
+
+            $tipo = (string) ($_POST['q_tipo'][$orden] ?? '');
+            $enun = (string) ($_POST['q_enunciado'][$orden] ?? '');
+
+            if (!in_array($tipo, ['imagen_par', 'vf', 'multi'], true)) {
+                continue;
+            }
+
+            $idPregunta = CursoEvaluacion::setPregunta($pdo, $idCurso, $orden, $tipo, $enun);
+
+            // Imagen opcional del enunciado (conservar si no suben una nueva)
+            if ($hasEnunImgCol) {
+                $enunImgUp = $this->guardarImagenCursoEval($idCurso, 'q_enun_img_' . $orden);
+
+                if (!$enunImgUp['ok']) {
+            $this->flash('error', $enunImgUp['error'] ?? 'No se pudo guardar la imagen del enunciado.');
+
+                    $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+                    return;
+                }
+                $stCur = $pdo->prepare('SELECT enunciado_imagen_path FROM curso_eval_preguntas WHERE id_pregunta_curso = :id LIMIT 1');
+                $stCur->execute(['id' => $idPregunta]);
+                $curRow = $stCur->fetch() ?: [];
+                $curPath = (string) ($curRow['enunciado_imagen_path'] ?? '');
+                $newPath = ($enunImgUp['path'] ?? null) ?: ($curPath !== '' ? $curPath : null);
+                $pdo->prepare('UPDATE curso_eval_preguntas SET enunciado_imagen_path = :p WHERE id_pregunta_curso = :id')
+                    ->execute(['p' => $newPath, 'id' => $idPregunta]);
+            }
+
+            if ($tipo === 'vf') {
+                CursoEvaluacion::replaceOpciones($pdo, $idPregunta, [
+                    ['clave' => 'true', 'texto' => 'Verdadero'],
+                    ['clave' => 'false', 'texto' => 'Falso'],
+                ]);
+                $ops = CursoEvaluacion::opcionesPorPregunta($pdo, $idPregunta);
+                $map = [];
+                foreach ($ops as $o) {
+                    $map[(string) $o['clave']] = (int) $o['id_opcion'];
+                }
+                $corr = (string) ($_POST['q_vf_correcta'][$orden] ?? 'true');
+
+                CursoEvaluacion::setRespuestaCorrecta($pdo, $idPregunta, $map[$corr] ?? $map['true']);
+            } elseif ($tipo === 'multi') {
+                $a = (string) ($_POST['q_multi_a'][$orden] ?? '');
+                $b = (string) ($_POST['q_multi_b'][$orden] ?? '');
+                $c = (string) ($_POST['q_multi_c'][$orden] ?? '');
+                $d = (string) ($_POST['q_multi_d'][$orden] ?? '');
+
+                CursoEvaluacion::replaceOpciones($pdo, $idPregunta, [
+                    ['clave' => 'a', 'texto' => $a],
+                    ['clave' => 'b', 'texto' => $b],
+                    ['clave' => 'c', 'texto' => $c],
+                    ['clave' => 'd', 'texto' => $d],
+                ]);
+                $ops = CursoEvaluacion::opcionesPorPregunta($pdo, $idPregunta);
+                $map = [];
+                foreach ($ops as $o) {
+                    $map[(string) $o['clave']] = (int) $o['id_opcion'];
+                }
+                $corr = (string) ($_POST['q_multi_correcta'][$orden] ?? 'a');
+
+                CursoEvaluacion::setRespuestaCorrecta($pdo, $idPregunta, $map[$corr] ?? $map['a']);
+            } else { // imagen_par
+                $okImg = $this->guardarImagenCursoEval($idCurso, 'q_img_ok_' . $orden);
+                $badImg = $this->guardarImagenCursoEval($idCurso, 'q_img_bad_' . $orden);
+
+                if (!$okImg['ok'] || !$badImg['ok']) {
+            $this->flash('error', $okImg['error'] ?? $badImg['error'] ?? 'No se pudo guardar imágenes.');
+
+                    $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+                    return;
+                }
+
+                // Si no se suben nuevas imágenes, conservar las existentes
+                $existOps = CursoEvaluacion::opcionesPorPregunta($pdo, $idPregunta);
+                $by = [];
+                foreach ($existOps as $o) {
+                    $by[(string) ($o['clave'] ?? '')] = $o;
+                }
+                $okPath = ($okImg['path'] ?? null) ?: ((string) ($by['ok']['imagen_path'] ?? '') !== '' ? (string) $by['ok']['imagen_path'] : null);
+                $badPath = ($badImg['path'] ?? null) ?: ((string) ($by['bad']['imagen_path'] ?? '') !== '' ? (string) $by['bad']['imagen_path'] : null);
+
+
+                CursoEvaluacion::replaceOpciones($pdo, $idPregunta, [
+                    ['clave' => 'ok', 'imagen_path' => $okPath],
+                    ['clave' => 'bad', 'imagen_path' => $badPath],
+                ]);
+                $ops = CursoEvaluacion::opcionesPorPregunta($pdo, $idPregunta);
+                $map = [];
+                foreach ($ops as $o) {
+                    $map[(string) $o['clave']] = (int) $o['id_opcion'];
+                }
+                CursoEvaluacion::setRespuestaCorrecta($pdo, $idPregunta, $map['ok']);
+            }
+        }
+
+        $this->flash('ok', 'Evaluación final guardada.');
+
+        $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+    }
+
+    public function evaluacion_guardar(): void
+    {
+        $this->requireAuth(['coordinador']);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $pdo = getPDO();
+        $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
+        if ($this->asegurarCurso($pdo, $idCurso) === null) {
+            $this->flash('error', 'Curso no permitido.');
+
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $raw = trim((string) ($_POST['evaluacion_nombre'] ?? ''));
+        $nombre = $raw === '' ? null : $raw;
+
+        if ($nombre !== null && strlen($nombre) > 150) {
+            $this->flash('error', 'El nombre de la evaluación es demasiado largo (máx. 150).');
+
+            $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+            return;
+        }
+
+        try {
+            $st = $pdo->prepare('UPDATE cursos SET evaluacion_nombre = :n WHERE id_cursos = :id');
+            $st->execute(['n' => $nombre, 'id' => $idCurso]);
+
+            $this->flash('ok', 'Evaluación guardada.');
+        } catch (Throwable $e) {
+            $this->flash('error', 'No se pudo guardar la evaluación.');
+        }
+
+        $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+    }
+
+    public function pregunta_guardar(): void
+    {
+        $this->requireAuth(['coordinador']);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        $pdo = getPDO();
+        $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
+        if ($this->asegurarCurso($pdo, $idCurso) === null) {
+            $this->flash('error', 'Curso no permitido.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
@@ -625,16 +1002,44 @@ class CoordinadorController extends Controller
         $c = trim((string) ($_POST['opcion_c'] ?? ''));
         $d = trim((string) ($_POST['opcion_d'] ?? ''));
         $ok = (string) ($_POST['respuesta_correcta'] ?? 'a');
+
         if (!in_array($ok, ['a', 'b', 'c', 'd'], true)) {
             $ok = 'a';
         }
-        if ($enunciado === '' || $a === '' || $b === '' || $c === '' || $d === '') {
-            $this->flash('error', 'Complete todas las opciones y el enunciado.');
+        if ($enunciado === '') {
+            $this->flash('error', 'Escriba el enunciado.');
+
             $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
             return;
         }
-        PreguntaEvaluacion::crear($pdo, $idCurso, $enunciado, $a, $b, $c, $d, $ok);
+
+        $imgA = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_a');
+        $imgB = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_b');
+        $imgC = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_c');
+        $imgD = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_d');
+
+        if (!$imgA['ok'] || !$imgB['ok'] || !$imgC['ok'] || !$imgD['ok']) {
+            $this->flash('error', $imgA['error'] ?? $imgB['error'] ?? $imgC['error'] ?? $imgD['error'] ?? 'Error al subir imágenes.');
+
+            $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+            return;
+        }
+
+        $paths = ['a' => $imgA['path'] ?? null, 'b' => $imgB['path'] ?? null, 'c' => $imgC['path'] ?? null, 'd' => $imgD['path'] ?? null];
+        $textos = ['a' => $a, 'b' => $b, 'c' => $c, 'd' => $d];
+        foreach (['a', 'b', 'c', 'd'] as $letra) {
+            if ($textos[$letra] === '' && ($paths[$letra] === null || $paths[$letra] === '')) {
+            $this->flash('error', 'Cada opción (A–D) debe tener texto o una imagen.');
+
+                $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+                return;
+            }
+        }
+
+        PreguntaEvaluacion::crear($pdo, $idCurso, $enunciado, $a, $b, $c, $d, $ok, $paths);
+
         $this->flash('ok', 'Pregunta agregada.');
+
         $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
     }
 
@@ -645,13 +1050,124 @@ class CoordinadorController extends Controller
         $idP = (int) ($_GET['id_pregunta'] ?? 0);
         $idCurso = (int) ($_GET['id_curso'] ?? 0);
         $p = PreguntaEvaluacion::buscar($pdo, $idP);
+
         if (!$p || (int) $p['id_curso'] !== $idCurso || $this->asegurarCurso($pdo, $idCurso) === null) {
             $this->flash('error', 'No se puede eliminar.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
+        foreach (['a', 'b', 'c', 'd'] as $letra) {
+            $ruta = (string) ($p['opcion_' . $letra . '_imagen'] ?? '');
+
+            if ($ruta !== '' && str_starts_with($ruta, 'uploads/eval_curso/')) {
+                $full = BASE_PATH . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $ruta);
+
+                if (is_file($full)) {
+                    @unlink($full);
+                }
+            }
+        }
         PreguntaEvaluacion::eliminar($pdo, $idP);
+
         $this->flash('ok', 'Pregunta eliminada.');
+
+        $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+    }
+
+    public function pregunta_actualizar(): void
+    {
+        $this->requireAuth(['coordinador']);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $pdo = getPDO();
+        $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
+        if ($this->asegurarCurso($pdo, $idCurso) === null) {
+            $this->flash('error', 'Curso no permitido.');
+
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $idP = (int) ($_POST['id_pregunta'] ?? 0);
+
+        if ($idP <= 0) {
+            $this->flash('error', 'Pregunta inválida.');
+
+            $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+            return;
+        }
+
+        $p = PreguntaEvaluacion::buscar($pdo, $idP);
+
+        if (!$p || (int) ($p['id_curso'] ?? 0) !== $idCurso) {
+            $this->flash('error', 'No disponible.');
+
+            $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+            return;
+        }
+
+        $enunciado = trim((string) ($_POST['enunciado'] ?? ''));
+        $a = trim((string) ($_POST['opcion_a'] ?? ''));
+        $b = trim((string) ($_POST['opcion_b'] ?? ''));
+        $c = trim((string) ($_POST['opcion_c'] ?? ''));
+        $d = trim((string) ($_POST['opcion_d'] ?? ''));
+        $ok = (string) ($_POST['respuesta_correcta'] ?? 'a');
+
+        if (!in_array($ok, ['a', 'b', 'c', 'd'], true)) {
+            $ok = 'a';
+        }
+        if ($enunciado === '') {
+            $this->flash('error', 'Escriba el enunciado.');
+
+            $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+            return;
+        }
+
+        $imgA = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_a');
+        $imgB = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_b');
+        $imgC = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_c');
+        $imgD = $this->guardarImagenEvalCurso($idCurso, 'img_opcion_d');
+
+        if (!$imgA['ok'] || !$imgB['ok'] || !$imgC['ok'] || !$imgD['ok']) {
+            $this->flash('error', $imgA['error'] ?? $imgB['error'] ?? $imgC['error'] ?? $imgD['error'] ?? 'Error al subir imágenes.');
+
+            $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+            return;
+        }
+
+        $paths = [
+            'a' => ($imgA['path'] ?? null) ?: ((string) ($p['opcion_a_imagen'] ?? '') !== '' ? (string) $p['opcion_a_imagen'] : null),
+            'b' => ($imgB['path'] ?? null) ?: ((string) ($p['opcion_b_imagen'] ?? '') !== '' ? (string) $p['opcion_b_imagen'] : null),
+            'c' => ($imgC['path'] ?? null) ?: ((string) ($p['opcion_c_imagen'] ?? '') !== '' ? (string) $p['opcion_c_imagen'] : null),
+            'd' => ($imgD['path'] ?? null) ?: ((string) ($p['opcion_d_imagen'] ?? '') !== '' ? (string) $p['opcion_d_imagen'] : null),
+        ];
+
+        $textos = ['a' => $a, 'b' => $b, 'c' => $c, 'd' => $d];
+        foreach (['a', 'b', 'c', 'd'] as $letra) {
+            if ($textos[$letra] === '' && ($paths[$letra] === null || $paths[$letra] === '')) {
+            $this->flash('error', 'Cada opción (A–D) debe tener texto o una imagen.');
+
+                $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+                return;
+            }
+        }
+
+        try {
+            $okUpd = PreguntaEvaluacion::actualizar($pdo, $idCurso, $idP, $enunciado, $a, $b, $c, $d, $ok, $paths);
+
+            $this->flash($okUpd ? 'ok' : 'error', $okUpd ? 'Pregunta actualizada.' : 'No se pudo actualizar.');
+
+        }
+            catch (Throwable $e) {
+            $this->flash('error', 'No se pudo actualizar.');
+        }
+
         $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
     }
 
@@ -661,15 +1177,21 @@ class CoordinadorController extends Controller
         $pdo = getPDO();
         $idCurso = (int) ($_GET['id'] ?? 0);
         $curso = $this->asegurarCurso($pdo, $idCurso);
+
         if ($curso === null) {
             $this->flash('error', 'Curso no disponible.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
+        $filtroEmpresa = CoordinadorReporte::normalizarFiltroEmpresa($_GET['empresa'] ?? '');
+        // Vista HTML: todas las filas; el filtro de empresa es en el navegador y en exportaciones (PDF/CSV).
         $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso);
+
         $this->render('coordinador/reporte', [
             'curso' => $data['curso'],
             'filas' => $data['filas'],
+            'filtroEmpresa' => $filtroEmpresa,
             'mensaje' => $this->flash('ok'),
             'error' => $this->flash('error'),
         ]);
@@ -681,21 +1203,26 @@ class CoordinadorController extends Controller
         $pdo = getPDO();
         $idCurso = (int) ($_GET['id'] ?? 0);
         $curso = $this->asegurarCurso($pdo, $idCurso);
+
         if ($curso === null) {
             http_response_code(403);
+
             echo 'No disponible.';
             return;
         }
 
-        $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso);
+        $filtroEmpresa = CoordinadorReporte::normalizarFiltroEmpresa($_GET['empresa'] ?? '');
+        $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso, $filtroEmpresa);
         $filas = $data['filas'] ?? [];
 
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="reporte_curso_' . $idCurso . '.csv"');
 
         $out = fopen('php://output', 'w');
+
         if ($out === false) {
             http_response_code(500);
+
             echo 'No se pudo generar el archivo.';
             return;
         }
@@ -705,6 +1232,7 @@ class CoordinadorController extends Controller
         fputcsv($out, [
             'cedula_asesor',
             'nombre_asesor',
+            'empresa',
             'estado_capacitacion',
             'progreso_porcentaje',
             'modulos_completos',
@@ -723,6 +1251,7 @@ class CoordinadorController extends Controller
             fputcsv($out, [
                 (string) ($f['cedula_asesor'] ?? ''),
                 (string) ($f['nombre_asesor'] ?? ''),
+                (string) ($f['empresa_label'] ?? CoordinadorReporte::etiquetaEmpresa((string) ($f['empresa'] ?? ''))),
                 (string) ($f['estado_capacitacion'] ?? ''),
                 (string) ($f['progreso_porcentaje'] ?? ''),
                 (string) ($f['modulos_completos'] ?? ''),
@@ -749,15 +1278,21 @@ class CoordinadorController extends Controller
         $pdo = getPDO();
         $idCurso = (int) ($_GET['id'] ?? 0);
         $curso = $this->asegurarCurso($pdo, $idCurso);
+
         if ($curso === null) {
             $this->flash('error', 'Curso no disponible.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
-        $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso);
+        $filtroEmpresa = CoordinadorReporte::normalizarFiltroEmpresa($_GET['empresa'] ?? '');
+        $data = CoordinadorReporte::reportePorCurso($pdo, $curso, $idCurso, $filtroEmpresa);
+
         $this->render('coordinador/reporte_pdf', [
             'curso' => $data['curso'],
             'filas' => $data['filas'],
+            'filtroEmpresa' => $data['filtro_empresa'] ?? $filtroEmpresa,
+            'filtroEmpresaLabel' => $data['filtro_empresa_label'] ?? '',
         ]);
     }
 
@@ -768,12 +1303,15 @@ class CoordinadorController extends Controller
         $idCurso = (int) ($_GET['id'] ?? 0);
         $cedula = trim((string) ($_GET['cedula'] ?? ''));
         $curso = $this->asegurarCurso($pdo, $idCurso);
+
         if ($curso === null || $cedula === '') {
             $this->flash('error', 'No disponible.');
+
             $this->redirect('?c=coordinador&a=index');
             return;
         }
         $data = CoordinadorReporte::detalleAsesor($pdo, $curso, $idCurso, $cedula);
+
         $this->render('coordinador/asesor_detalle', $data);
     }
 }

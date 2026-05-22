@@ -20,10 +20,104 @@
   font-weight: 600;
 }
 
+main.asesor-dashboard {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
+  min-height: calc(100vh - 72px);
+}
+
+.asesor-dashboard .container-fluid {
+  max-width: 100%;
+}
+
+.asesor-sidebar-card,
+.asesor-lista-card {
+  border-radius: 12px;
+}
+
+.asesor-sidebar-head {
+  background: #f8fafc;
+}
+
+.asesor-nav-apartado {
+  border: none;
+  text-align: left;
+  font-weight: 500;
+  color: #334155;
+}
+
+.asesor-nav-apartado.active {
+  background: #e0f2fe;
+  color: #1e3a5f;
+  font-weight: 600;
+  border-left: 3px solid #2563eb;
+}
+
+.asesor-lista-card .asesor-lista-cursos {
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+.asesor-lista-item {
+  border: none;
+  text-align: left;
+}
+
+.asesor-lista-item.active {
+  background: #eff6ff;
+  color: #1e3a5f;
+  border-left: 3px solid #2563eb;
+}
+
+.asesor-lista-nombre {
+  font-weight: 600;
+  display: block;
+}
+
+.asesor-panels .asesor-panel {
+  border-radius: 12px;
+  min-height: 280px;
+}
+
+.asesor-panel-empty.d-none {
+  display: none !important;
+}
+
+.asesor-stat-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  height: 100%;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.asesor-stat-val {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1e3a5f;
+}
+
+.asesor-stat-label {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.asesor-stat-card--cert .asesor-stat-val {
+  color: #15803d;
+}
+
+.asesor-inicio-tip {
+  border-color: #e2e8f0 !important;
+}
+
 main {
-  max-width: 900px;
-  margin: 2rem auto;
-  padding: 0 1.25rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
 }
 
 .cards {

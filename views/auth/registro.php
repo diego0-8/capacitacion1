@@ -34,6 +34,15 @@
             <input type="text" id="cedula" name="cedula" required inputmode="numeric" maxlength="10" value="<?php echo htmlspecialchars((string) ($form['cedula'] ?? '')); ?>">
           </div>
           <div class="auth-field">
+            <label for="empresa">Empresa</label>
+            <?php $empresaSel = (string) ($form['empresa'] ?? 'onix'); ?>
+            <select id="empresa" name="empresa" required>
+              <option value="onix" <?php echo $empresaSel === 'onix' ? 'selected' : ''; ?>>Onix bpo</option>
+              <option value="nextdata" <?php echo $empresaSel === 'nextdata' ? 'selected' : ''; ?>>Nextdata S.A.S</option>
+              <option value="tys" <?php echo $empresaSel === 'tys' ? 'selected' : ''; ?>>TyS S.A.S</option>
+            </select>
+          </div>
+          <div class="auth-field">
             <label for="nombre">Nombre completo</label>
             <input type="text" id="nombre" name="nombre" required maxlength="100" value="<?php echo htmlspecialchars((string) ($form['nombre'] ?? '')); ?>">
           </div>

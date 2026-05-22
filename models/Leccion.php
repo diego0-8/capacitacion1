@@ -10,6 +10,7 @@ class Leccion
         $sql = 'SELECT * FROM lecciones WHERE id_curso = :c ORDER BY id_modulo ASC, orden ASC, id_leccion ASC';
         $st = $pdo->prepare($sql);
         $st->execute(['c' => $idTreatedCurso]);
+
         return $st->fetchAll();
     }
 
@@ -18,6 +19,7 @@ class Leccion
     {
         $st = $pdo->prepare('SELECT * FROM lecciones WHERE id_modulo = :m ORDER BY orden ASC, id_leccion ASC');
         $st->execute(['m' => $idModulo]);
+
         return $st->fetchAll();
     }
 
@@ -27,6 +29,7 @@ class Leccion
         $st = $pdo->prepare($sql);
         $st->execute(['id' => $idLeccion]);
         $row = $st->fetch();
+
         return $row ?: null;
     }
 
@@ -36,6 +39,7 @@ class Leccion
         $st = $pdo->prepare($sql);
         $st->execute(['c' => $idCurso]);
         $row = $st->fetch();
+
         return (int) ($row['n'] ?? 1);
     }
 
@@ -44,6 +48,7 @@ class Leccion
         $st = $pdo->prepare('SELECT COALESCE(MAX(orden), 0) + 1 AS n FROM lecciones WHERE id_modulo = :m');
         $st->execute(['m' => $idModulo]);
         $row = $st->fetch();
+
         return (int) ($row['n'] ?? 1);
     }
 
@@ -73,6 +78,7 @@ class Leccion
             'o' => $orden,
             'd' => $duracion,
         ]);
+
         return (int) $pdo->lastInsertId();
     }
 
@@ -106,6 +112,7 @@ class Leccion
             'c' => $idCurso,
             'm' => $idModulo,
         ]);
+
         return $st->rowCount() > 0;
     }
 
@@ -120,6 +127,7 @@ class Leccion
         $st = $pdo->prepare('SELECT COUNT(*) AS n FROM lecciones WHERE id_curso = :c');
         $st->execute(['c' => $idCurso]);
         $row = $st->fetch();
+
         return (int) ($row['n'] ?? 0);
     }
 
@@ -127,10 +135,12 @@ class Leccion
     public static function calcularProgresoPorLeccion(PDO $pdo, int $idCurso, int $idLeccion): int
     {
         $leccion = self::buscar($pdo, $idLeccion);
+
         if (!$leccion || (int) $leccion['id_curso'] !== $idCurso) {
             return 0;
         }
         $total = self::contarPorCurso($pdo, $idCurso);
+
         if ($total === 0) {
             return 100;
         }
@@ -139,6 +149,7 @@ class Leccion
         $st->execute(['c' => $idCurso, 'o' => $orden]);
         $row = $st->fetch();
         $hechas = (int) ($row['n'] ?? 0);
+
         return (int) min(100, round(($hechas / $total) * 100));
     }
 }
