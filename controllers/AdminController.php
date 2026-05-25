@@ -137,6 +137,12 @@ class AdminController extends Controller
             $this->redirect('?c=admin&a=asignaciones');
             return;
         }
+        if (!Usuario::esAsesorActivo($pdo, $cedula)) {
+            $this->flash('error', 'El asesor está inactivo. Actívelo en «Usuarios» antes de asignar cursos.');
+
+            $this->redirect('?c=admin&a=asignaciones');
+            return;
+        }
         $existe = CapacitacionAsignada::buscarPorAsesorCurso($pdo, $cedula, $idCurso);
 
         if ($existe) {

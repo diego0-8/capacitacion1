@@ -142,8 +142,13 @@
             <label>Imagen del enunciado (opcional)</label>
             <input type="file" name="q_enun_img_<?php echo $i; ?>" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
             <?php $enunImg = is_array($p) ? (string) ($p['enunciado_imagen_path'] ?? '') : ''; ?>
+            <?php $idPregActual = is_array($p) ? (int) ($p['id_pregunta_curso'] ?? 0) : 0; ?>
             <?php if ($enunImg !== ''): ?>
-              <div class="img-prev"><small class="muted">Actual:</small> <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . $enunImg); ?>">Abrir</a></div>
+              <div class="img-prev">
+                <small class="muted">Actual:</small>
+                <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . $enunImg); ?>">Abrir</a>
+                <button type="button" class="btn-delete-resource" data-delete-recurso="enunciado_imagen" data-delete-id="<?php echo $idPregActual; ?>">Eliminar</button>
+              </div>
             <?php endif; ?>
 
             <div class="quiz-tipo">
@@ -181,12 +186,20 @@
                   <label>Imagen correcta</label>
                   <input type="file" name="q_img_ok_<?php echo $i; ?>" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
                   <?php if ($imgOk !== ''): ?>
-                    <div class="img-prev"><small class="muted">Actual:</small> <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . $imgOk); ?>">Abrir</a></div>
+                    <div class="img-prev">
+                      <small class="muted">Actual:</small>
+                      <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . $imgOk); ?>">Abrir</a>
+                      <button type="button" class="btn-delete-resource" data-delete-recurso="img_ok" data-delete-id="<?php echo $idPregActual; ?>">Eliminar</button>
+                    </div>
                   <?php endif; ?>
                   <label>Imagen incorrecta</label>
                   <input type="file" name="q_img_bad_<?php echo $i; ?>" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
                   <?php if ($imgBad !== ''): ?>
-                    <div class="img-prev"><small class="muted">Actual:</small> <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . $imgBad); ?>">Abrir</a></div>
+                    <div class="img-prev">
+                      <small class="muted">Actual:</small>
+                      <a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . $imgBad); ?>">Abrir</a>
+                      <button type="button" class="btn-delete-resource" data-delete-recurso="img_bad" data-delete-id="<?php echo $idPregActual; ?>">Eliminar</button>
+                    </div>
                   <?php endif; ?>
                 </div>
               </div>
@@ -197,8 +210,47 @@
         <button type="submit">Guardar evaluación final</button>
       </form>
     </section>
+
+    <form id="form-delete-recurso" method="post" action="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=curso_eval_eliminar_recurso'); ?>" style="display:none;">
+      <input type="hidden" name="id_curso" value="<?php echo $idCurso; ?>">
+      <input type="hidden" name="id_pregunta_curso" id="del-id-pregunta" value="">
+      <input type="hidden" name="recurso" id="del-recurso" value="">
+    </form>
   </main>
 
+  <style>
+    .btn-delete-resource {
+      display: inline-block;
+      margin-left: 0.5rem;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-delete-resource:hover {
+      background: #fee2e2;
+    }
+  </style>
+  <script>
+  (function () {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.btn-delete-resource');
+      if (!btn) return;
+      e.preventDefault();
+      var recurso = btn.getAttribute('data-delete-recurso') || '';
+      var idP = btn.getAttribute('data-delete-id') || '';
+      if (!recurso || !idP) return;
+      if (!confirm('¿Eliminar este recurso? Esta acción no se puede deshacer.')) return;
+      document.getElementById('del-id-pregunta').value = idP;
+      document.getElementById('del-recurso').value = recurso;
+      document.getElementById('form-delete-recurso').submit();
+    });
+  })();
+  </script>
   <script>
   (function () {
     var evalModal = document.getElementById('eval-modal');

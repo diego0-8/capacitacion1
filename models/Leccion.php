@@ -4,6 +4,21 @@ declare(strict_types=1);
 
 class Leccion
 {
+    private static function dbHasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        $st = $pdo->prepare(
+            'SELECT COUNT(*) AS n
+             FROM information_schema.columns
+             WHERE table_schema = DATABASE()
+               AND table_name = :t
+               AND column_name = :c'
+        );
+        $st->execute(['t' => $table, 'c' => $column]);
+        $row = $st->fetch();
+
+        return (int) ($row['n'] ?? 0) > 0;
+    }
+
     /** @return array<int, array<string,mixed>> */
     public static function porCurso(PDO $pdo, int $idTreatedCurso): array
     {
@@ -62,12 +77,16 @@ class Leccion
         ?string $imagenTexto,
         ?string $videoPath,
         int $orden,
-        int $duracion
+        int $duracion,
+        ?string $pdfPath = null
     ): int {
-        $sql = 'INSERT INTO lecciones (id_curso, id_modulo, titulo_leccion, contenido, imagen_path, imagen_texto, video_path, orden, duracion_minutos)
-                VALUES (:c, :m, :t, :cont, :img, :imgtxt, :vid, :o, :d)';
+        $hasPdf = self::dbHasColumn($pdo, 'lecciones', 'pdf_path');
+        $pdfColumn = $hasPdf ? ', pdf_path' : '';
+        $pdfValue = $hasPdf ? ', :pdf' : '';
+        $sql = 'INSERT INTO lecciones (id_curso, id_modulo, titulo_leccion, contenido, imagen_path, imagen_texto, video_path' . $pdfColumn . ', orden, duracion_minutos)
+                VALUES (:c, :m, :t, :cont, :img, :imgtxt, :vid' . $pdfValue . ', :o, :d)';
         $st = $pdo->prepare($sql);
-        $st->execute([
+        $params = [
             'c' => $idCurso,
             'm' => $idModulo,
             't' => $titulo,
@@ -77,7 +96,11 @@ class Leccion
             'vid' => $videoPath,
             'o' => $orden,
             'd' => $duracion,
-        ]);
+        ];
+        if ($hasPdf) {
+            $params['pdf'] = $pdfPath;
+        }
+        $st->execute($params);
 
         return (int) $pdo->lastInsertId();
     }
@@ -91,18 +114,22 @@ class Leccion
         string $contenido,
         ?string $imagenPath,
         ?string $imagenTexto,
-        ?string $videoPath
+        ?string $videoPath,
+        ?string $pdfPath = null
     ): bool
     {
+        $hasPdf = self::dbHasColumn($pdo, 'lecciones', 'pdf_path');
+        $pdfSet = $hasPdf ? ',
+                    pdf_path = :pdf' : '';
         $sql = 'UPDATE lecciones
                 SET titulo_leccion = :t,
                     contenido = :cont,
                     imagen_path = :img,
                     imagen_texto = :imgtxt,
-                    video_path = :vid
+                    video_path = :vid' . $pdfSet . '
                 WHERE id_leccion = :id AND id_curso = :c AND id_modulo = :m';
         $st = $pdo->prepare($sql);
-        $st->execute([
+        $params = [
             't' => $titulo,
             'cont' => $contenido,
             'img' => $imagenPath,
@@ -111,7 +138,11 @@ class Leccion
             'id' => $idLeccion,
             'c' => $idCurso,
             'm' => $idModulo,
-        ]);
+        ];
+        if ($hasPdf) {
+            $params['pdf'] = $pdfPath;
+        }
+        $st->execute($params);
 
         return $st->rowCount() > 0;
     }

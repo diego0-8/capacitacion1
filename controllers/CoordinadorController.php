@@ -5,6 +5,7 @@ declare(strict_types=1);
 class CoordinadorController extends Controller
 {
     private const CURSO_EVAL_MAX_SLOTS = 10;
+    private const VIDEO_MAX_SECONDS = 600;
 
     private static function dbHasColumn(PDO $pdo, string $table, string $column): bool
     {
@@ -126,7 +127,7 @@ class CoordinadorController extends Controller
             'curso' => $curso,
             'accesoActual' => CursoAccesoAsesor::modoAcceso($pdo, $idCurso),
             'permitidos' => CursoAccesoAsesor::listarPermitidos($pdo, $idCurso),
-            'asesores' => Usuario::listarTodosAsesores($pdo),
+            'asesores' => Usuario::listarAsesoresActivos($pdo),
             'migracionOk' => CursoAccesoAsesor::tieneMigracion($pdo),
         ]);
     }
@@ -156,7 +157,7 @@ class CoordinadorController extends Controller
         }
 
         $modo = ($_POST['acceso_asesores'] ?? '') === 'restringido' ? 'restringido' : 'publico';
-        $listaAsesores = Usuario::listarTodosAsesores($pdo);
+        $listaAsesores = Usuario::listarAsesoresActivos($pdo);
         $cedulasRaw = isset($_POST['cedulas_asesor']) && is_array($_POST['cedulas_asesor'])
             ? $_POST['cedulas_asesor']
             : [];
@@ -354,6 +355,13 @@ class CoordinadorController extends Controller
         if (!in_array($ext, $extsPermitidas, true)) {
             return ['ok' => false, 'error' => 'Tipo de archivo no permitido.'];
         }
+        if ($inputName === 'video') {
+            $duracion = $this->duracionVideoSegundos((string) $_FILES[$inputName]['tmp_name']);
+
+            if ($duracion !== null && $duracion > self::VIDEO_MAX_SECONDS) {
+                return ['ok' => false, 'error' => 'El video no puede superar los 10 minutos.'];
+            }
+        }
 
         $dirBase = BASE_PATH . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'lecciones';
         $dir = $dirBase . DIRECTORY_SEPARATOR . $idCurso;
@@ -369,6 +377,35 @@ class CoordinadorController extends Controller
             return ['ok' => false, 'error' => 'No se pudo guardar el archivo.'];
         }
         return ['ok' => true, 'path' => 'uploads/lecciones/' . $idCurso . '/' . basename($dest)];
+    }
+
+    private function duracionVideoSegundos(string $tmpPath): ?float
+    {
+        if ($tmpPath === '' || !is_file($tmpPath) || !function_exists('shell_exec')) {
+            return null;
+        }
+        $cmdLookup = PHP_OS_FAMILY === 'Windows' ? 'where ffprobe 2>NUL' : 'command -v ffprobe 2>/dev/null';
+        $ffprobe = trim((string) @shell_exec($cmdLookup));
+
+        if ($ffprobe === '') {
+            return null;
+        }
+        $bin = strtok($ffprobe, "\r\n");
+
+        if ($bin === false || $bin === '') {
+            return null;
+        }
+        $stderrNull = PHP_OS_FAMILY === 'Windows' ? ' 2>NUL' : ' 2>/dev/null';
+        $cmd = escapeshellarg($bin)
+            . ' -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 '
+            . escapeshellarg($tmpPath)
+            . $stderrNull;
+        $out = trim((string) @shell_exec($cmd));
+
+        if ($out === '' || !is_numeric($out)) {
+            return null;
+        }
+        return (float) $out;
     }
 
     public function leccion_crear(): void
@@ -479,10 +516,24 @@ class CoordinadorController extends Controller
                 $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
                 return;
             }
-            $vidUp = $this->guardarMediaLeccionOpcional($idCurso, 'video', ['mp4'], 80 * 1024 * 1024);
+            $vidUp = $this->guardarMediaLeccionOpcional($idCurso, 'video', ['mp4'], 105 * 1024 * 1024);
 
             if (!$vidUp['ok']) {
             $this->flash('error', $vidUp['error'] ?? 'Error al subir video.');
+
+                $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
+                return;
+            }
+            if (!empty($_FILES['pdf']) && ($_FILES['pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE && !self::dbHasColumn($pdo, 'lecciones', 'pdf_path')) {
+                $this->flash('error', 'Antes de subir PDF debe ejecutar la migración database/migration_lecciones_pdf_path.sql.');
+
+                $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
+                return;
+            }
+            $pdfUp = $this->guardarMediaLeccionOpcional($idCurso, 'pdf', ['pdf'], 20 * 1024 * 1024);
+
+            if (!$pdfUp['ok']) {
+            $this->flash('error', $pdfUp['error'] ?? 'Error al subir PDF.');
 
                 $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
                 return;
@@ -491,8 +542,9 @@ class CoordinadorController extends Controller
             $imagenPath = ($imgUp['path'] ?? null) ?: ((string) ($leccion['imagen_path'] ?? '') !== '' ? (string) $leccion['imagen_path'] : null);
             $imagenTextoFinal = $imagenTexto !== '' ? $imagenTexto : ((string) ($leccion['imagen_texto'] ?? '') !== '' ? (string) $leccion['imagen_texto'] : null);
             $videoPath = ($vidUp['path'] ?? null) ?: ((string) ($leccion['video_path'] ?? '') !== '' ? (string) $leccion['video_path'] : null);
+            $pdfPath = ($pdfUp['path'] ?? null) ?: ((string) ($leccion['pdf_path'] ?? '') !== '' ? (string) $leccion['pdf_path'] : null);
 
-            $ok = Leccion::actualizar($pdo, $idLeccion, $idCurso, $idModulo, $titulo, $contenido, $imagenPath, $imagenTextoFinal, $videoPath);
+            $ok = Leccion::actualizar($pdo, $idLeccion, $idCurso, $idModulo, $titulo, $contenido, $imagenPath, $imagenTextoFinal, $videoPath, $pdfPath);
 
             $this->flash($ok ? 'ok' : 'error', $ok ? 'Clase actualizada.' : 'No se pudo actualizar.');
 
@@ -759,6 +811,68 @@ class CoordinadorController extends Controller
         $this->redirectVistaCurso($idCurso, $idModuloDel);
     }
 
+    public function leccion_eliminar_recurso(): void
+    {
+        $this->requireAuth(['coordinador']);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        $pdo = getPDO();
+        $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
+        if ($this->asegurarCurso($pdo, $idCurso) === null) {
+            $this->flash('error', 'Curso no permitido.');
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $idLeccion = (int) ($_POST['id_leccion'] ?? 0);
+        $idModulo = (int) ($_POST['id_modulo'] ?? 0);
+        $recurso = (string) ($_POST['recurso'] ?? '');
+        $leccion = Leccion::buscar($pdo, $idLeccion);
+
+        if (!$leccion || (int) $leccion['id_curso'] !== $idCurso) {
+            $this->flash('error', 'Clase no encontrada.');
+            $this->redirectVistaCurso($idCurso);
+            return;
+        }
+
+        $columnas = ['imagen' => 'imagen_path', 'video' => 'video_path', 'pdf' => 'pdf_path'];
+
+        if (!isset($columnas[$recurso])) {
+            $this->flash('error', 'Recurso inválido.');
+            $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
+            return;
+        }
+
+        $col = $columnas[$recurso];
+
+        if ($col === 'pdf_path' && !self::dbHasColumn($pdo, 'lecciones', 'pdf_path')) {
+            $this->flash('error', 'Columna pdf_path no existe. Ejecute la migración.');
+            $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
+            return;
+        }
+
+        $path = (string) ($leccion[$col] ?? '');
+
+        if ($path !== '' && str_starts_with($path, 'uploads/lecciones/') && is_file(BASE_PATH . '/' . $path)) {
+            @unlink(BASE_PATH . '/' . $path);
+        }
+
+        $pdo->prepare("UPDATE lecciones SET $col = NULL WHERE id_leccion = :id AND id_curso = :c")
+            ->execute(['id' => $idLeccion, 'c' => $idCurso]);
+
+        if ($recurso === 'imagen') {
+            $pdo->prepare('UPDATE lecciones SET imagen_texto = NULL WHERE id_leccion = :id AND id_curso = :c')
+                ->execute(['id' => $idLeccion, 'c' => $idCurso]);
+        }
+
+        $this->flash('ok', ucfirst($recurso) . ' eliminado.');
+        $this->redirectVistaCurso($idCurso, $idModulo, $idLeccion);
+    }
+
     public function preguntas(): void
     {
         $this->requireAuth(['coordinador']);
@@ -935,6 +1049,63 @@ class CoordinadorController extends Controller
 
         $this->flash('ok', 'Evaluación final guardada.');
 
+        $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+    }
+
+    public function curso_eval_eliminar_recurso(): void
+    {
+        $this->requireAuth(['coordinador']);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+        $pdo = getPDO();
+        $idCurso = (int) ($_POST['id_curso'] ?? 0);
+
+        if ($this->asegurarCurso($pdo, $idCurso) === null) {
+            $this->flash('error', 'Curso no permitido.');
+            $this->redirect('?c=coordinador&a=index');
+            return;
+        }
+
+        $recurso = (string) ($_POST['recurso'] ?? '');
+        $idPregunta = (int) ($_POST['id_pregunta_curso'] ?? 0);
+
+        if ($idPregunta <= 0 || $recurso === '') {
+            $this->flash('error', 'Datos inválidos.');
+            $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
+            return;
+        }
+
+        if ($recurso === 'enunciado_imagen') {
+            if (self::dbHasColumn($pdo, 'curso_eval_preguntas', 'enunciado_imagen_path')) {
+                $st = $pdo->prepare('SELECT enunciado_imagen_path FROM curso_eval_preguntas WHERE id_pregunta_curso = :id AND id_curso = :c');
+                $st->execute(['id' => $idPregunta, 'c' => $idCurso]);
+                $row = $st->fetch();
+                $path = (string) ($row['enunciado_imagen_path'] ?? '');
+                if ($path !== '' && is_file(BASE_PATH . '/' . $path)) {
+                    @unlink(BASE_PATH . '/' . $path);
+                }
+                $pdo->prepare('UPDATE curso_eval_preguntas SET enunciado_imagen_path = NULL WHERE id_pregunta_curso = :id')
+                    ->execute(['id' => $idPregunta]);
+            }
+        } elseif ($recurso === 'img_ok' || $recurso === 'img_bad') {
+            $clave = $recurso === 'img_ok' ? 'ok' : 'bad';
+            $st = $pdo->prepare(
+                'SELECT imagen_path FROM curso_eval_opciones WHERE id_pregunta_curso = :p AND clave = :c LIMIT 1'
+            );
+            $st->execute(['p' => $idPregunta, 'c' => $clave]);
+            $row = $st->fetch();
+            $path = (string) ($row['imagen_path'] ?? '');
+            if ($path !== '' && is_file(BASE_PATH . '/' . $path)) {
+                @unlink(BASE_PATH . '/' . $path);
+            }
+            $pdo->prepare('UPDATE curso_eval_opciones SET imagen_path = NULL WHERE id_pregunta_curso = :p AND clave = :c')
+                ->execute(['p' => $idPregunta, 'c' => $clave]);
+        }
+
+        $this->flash('ok', 'Recurso eliminado.');
         $this->redirect('?c=coordinador&a=preguntas&id=' . $idCurso);
     }
 
@@ -1311,6 +1482,7 @@ class CoordinadorController extends Controller
             return;
         }
         $data = CoordinadorReporte::detalleAsesor($pdo, $curso, $idCurso, $cedula);
+        $data['asesor_inactivo'] = $data['asesor_inactivo'] ?? false;
 
         $this->render('coordinador/asesor_detalle', $data);
     }

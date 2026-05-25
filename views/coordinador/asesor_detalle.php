@@ -16,15 +16,35 @@
     .ts{min-width:160px}
     .evtBody{flex:1}
     .evtTitle{font-weight:600}
+    .flash-err{color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;margin:12px 0}
   </style>
 </head>
 <body>
-  <?php $navActive = 'coord_detalle'; require BASE_PATH . '/views/auth/header.php'; ?>
+  <?php
+  /**
+   * @var array<string, mixed> $curso
+   * @var array<string, mixed> $asesor
+   * @var array<int, array<string, mixed>> $timeline
+   * @var bool $asesor_inactivo
+   */
+  $navActive = 'coord_detalle';
+  require BASE_PATH . '/views/auth/header.php';
+  $curso = is_array($curso ?? null) ? $curso : [];
+  $asesor = is_array($asesor ?? null) ? $asesor : [];
+  $timeline = is_array($timeline ?? null) ? $timeline : [];
+  $asesor_inactivo = !empty($asesor_inactivo);
+  $idCurso = (int) ($curso['id_cursos'] ?? 0);
+  ?>
   <main>
     <h1>Detalle del asesor</h1>
     <p class="muted">
       Curso: <strong><?php echo htmlspecialchars((string) ($curso['nombre_curso'] ?? '')); ?></strong>
     </p>
+
+    <?php if (!empty($asesor_inactivo)) { ?>
+      <p class="flash-err">Este asesor está <strong>inactivo</strong> y no aparece en reportes ni listados del coordinador. Actívelo en administración → Usuarios para ver su detalle.</p>
+      <p><a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=reporte&id=' . $idCurso); ?>">Volver al reporte</a></p>
+    <?php } else { ?>
 
     <div class="grid">
       <div class="card">
@@ -40,53 +60,59 @@
           Completado: <?php echo htmlspecialchars((string) ($asesor['fecha_completado'] ?? '')); ?>
         </div>
         <div style="margin-top:12px">
-          <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=reporte&id=' . (int) ($curso['id_cursos'] ?? 0)); ?>">Volver al reporte</a>
+          <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=reporte&id=' . $idCurso); ?>">Volver al reporte</a>
         </div>
       </div>
 
       <div class="card">
         <h2 style="margin-top:0">Trazabilidad (timeline)</h2>
-        <?php if (empty($timeline)): ?>
+        <?php if (empty($timeline)) { ?>
           <p class="muted">No hay actividad registrada todavía.</p>
-        <?php else: ?>
+        <?php } else { ?>
           <div class="tl">
-            <?php foreach ($timeline as $e): ?>
-              <?php
-              $tipo = (string) ($e['tipo'] ?? '');
-              $ts = (string) ($e['ts'] ?? '');
-              ?>
+            <?php foreach ($timeline as $e) {
+                if (!is_array($e)) {
+                    continue;
+                }
+                $tipo = (string) ($e['tipo'] ?? '');
+                $ts = (string) ($e['ts'] ?? '');
+                ?>
               <div class="evt">
                 <div class="ts muted"><?php echo htmlspecialchars($ts); ?></div>
                 <div class="evtBody">
-                  <?php if ($tipo === 'leccion'): ?>
+                  <?php if ($tipo === 'leccion') { ?>
                     <div class="evtTitle">Lección completada</div>
                     <div><?php echo htmlspecialchars((string) ($e['titulo'] ?? '')); ?></div>
                     <div class="muted">Módulo: <?php echo (int) ($e['id_modulo'] ?? 0); ?></div>
-                  <?php elseif ($tipo === 'quiz_modulo'): ?>
+                  <?php } elseif ($tipo === 'quiz_modulo') { ?>
                     <div class="evtTitle">Quiz de módulo</div>
                     <div class="muted">
                       Módulo <?php echo (int) ($e['id_modulo'] ?? 0); ?> ·
                       <?php echo (int) ($e['correctas'] ?? 0); ?>/<?php echo (int) ($e['total'] ?? 0); ?> ·
                       <?php echo !empty($e['aprobado']) ? 'Aprobado' : 'Reprobado'; ?>
                     </div>
-                  <?php elseif ($tipo === 'evaluacion_final'): ?>
+                  <?php } elseif ($tipo === 'evaluacion_final') { ?>
                     <div class="evtTitle">Evaluación final</div>
                     <div class="muted">
                       Resultado: <?php echo htmlspecialchars((string) ($e['resultado'] ?? '')); ?> ·
                       Puntaje: <?php echo htmlspecialchars((string) ($e['puntaje'] ?? '')); ?>/10
                     </div>
-                  <?php else: ?>
+                  <?php } else { ?>
                     <div class="evtTitle">Evento</div>
                     <div class="muted"><?php echo htmlspecialchars($tipo); ?></div>
-                  <?php endif; ?>
+                  <?php } ?>
                 </div>
               </div>
-            <?php endforeach; ?>
+            <?php } ?>
           </div>
-        <?php endif; ?>
+        <?php } ?>
       </div>
     </div>
+    <?php } ?>
   </main>
 </body>
 </html>
+
+
+
 

@@ -4,6 +4,34 @@ declare(strict_types=1);
 
 class Usuario
 {
+    public const ESTADO_ACTIVO = 'activo';
+    public const ESTADO_INACTIVO = 'inactivo';
+
+    /**
+     * Condición SQL para listados de inscripciones/capacitaciones: solo asesores activos en usuarios.
+     * Si no hay fila en usuarios (cedula huérfana), se mantiene por compatibilidad.
+     */
+    public static function sqlWhereAsesorVisibleEnListados(string $aliasUsuario = 'u'): string
+    {
+        $a = preg_replace('/[^a-z_]/', '', $aliasUsuario) ?: 'u';
+
+        return '(' . $a . '.cedula IS NULL OR (' . $a . ".rol = 'asesor' AND " . $a . ".estado = 'activo'))";
+    }
+
+    public static function esAsesorActivo(PDO $pdo, string $cedula): bool
+    {
+        $cedula = trim($cedula);
+        if ($cedula === '') {
+            return false;
+        }
+        $st = $pdo->prepare(
+            "SELECT 1 FROM usuarios WHERE cedula = :c AND rol = 'asesor' AND estado = 'activo' LIMIT 1"
+        );
+        $st->execute(['c' => $cedula]);
+
+        return (bool) $st->fetch();
+    }
+
     private static function tieneEmpresa(PDO $pdo): bool
     {
         static $cache = null;
@@ -68,17 +96,23 @@ class Usuario
     {
         $sql = 'SELECT cedula, nombre, usuario, email, estado FROM usuarios WHERE rol = :r AND estado = :e ORDER BY nombre';
         $st = $pdo->prepare($sql);
-        $st->execute(['r' => $rol, 'e' => 'activo']);
+        $st->execute(['r' => $rol, 'e' => self::ESTADO_ACTIVO]);
 
         return $st->fetchAll();
     }
 
-    /** Todos los usuarios con rol asesor (activos e inactivos), para configurar acceso al curso. */
+    /** Asesores con estado activo (listados del coordinador, acceso al curso, asignaciones). */
+    /** @return array<int, array<string,mixed>> */
+    public static function listarAsesoresActivos(PDO $pdo): array
+    {
+        return self::listarPorRol($pdo, 'asesor');
+    }
+
+    /** @deprecated Use listarAsesoresActivos() — mantiene compatibilidad. */
     /** @return array<int, array<string,mixed>> */
     public static function listarTodosAsesores(PDO $pdo): array
     {
-        $sql = 'SELECT cedula, nombre, usuario, email, estado FROM usuarios WHERE rol = \'asesor\' ORDER BY nombre';
-        return $pdo->query($sql)->fetchAll();
+        return self::listarAsesoresActivos($pdo);
     }
 
     /**

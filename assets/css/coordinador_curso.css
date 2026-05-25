@@ -224,6 +224,19 @@ textarea {
   margin-top: 0.35rem;
 }
 
+.material-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.material-section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
 /* Modal */
 .modal { display: none; }
 .modal.open { display: block; }
