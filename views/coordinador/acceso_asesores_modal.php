@@ -59,9 +59,9 @@
           </div>
         <?php endif; ?>
       </div>
-      <p class="muted small">Seleccione con las casillas los asesores que tendrán acceso a este curso. Al guardar se les asignará automáticamente.</p>
+      <p class="muted small">Solo se listan asesores <strong>activos</strong>. Los inhabilitados en «Usuarios» no aparecen hasta volver a activarlos.</p>
       <?php if ($asesores === []): ?>
-        <p class="muted">No hay usuarios con rol asesor. El administrador puede crearlos en «Usuarios».</p>
+        <p class="muted">No hay asesores activos. El administrador puede crearlos o reactivarlos en «Usuarios».</p>
       <?php else: ?>
         <div class="acceso-check-grid" id="acceso-check-grid">
           <?php foreach ($asesores as $a): ?>
@@ -71,8 +71,6 @@
             if ($nom === '') {
                 $nom = '(Sin nombre)';
             }
-            $estado = (string) ($a['estado'] ?? '');
-            $esActivo = $estado === 'activo';
             $chk = isset($permitidosSet[$ced]);
             ?>
             <label class="acceso-check">
@@ -86,9 +84,6 @@
               <span class="acceso-check-body">
                 <span class="acceso-check-nombre"><?php echo htmlspecialchars($nom); ?></span>
                 <span class="muted">CC <?php echo htmlspecialchars($ced); ?></span>
-                <span class="chip-estado <?php echo $esActivo ? 'chip-estado--activo' : 'chip-estado--inactivo'; ?>">
-                  <?php echo htmlspecialchars($esActivo ? 'activo' : ($estado !== '' ? $estado : 'inactivo')); ?>
-                </span>
               </span>
             </label>
           <?php endforeach; ?>

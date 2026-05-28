@@ -106,27 +106,38 @@ form.nueva {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  align-items: center;
 }
 
 .eval-quick-enable {
   display: inline-flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
 }
 
 .btn-enable-on,
-.btn-enable-off {
-  padding: 0.55rem 0.95rem;
+.btn-enable-off,
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 1rem;
   border-radius: 10px;
-  font-weight: 800;
+  font-weight: 700;
+  font-size: 0.9rem;
   cursor: pointer;
   border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 1;
 }
 
 .btn-enable-on {
   background: #15803d;
   color: #fff;
+  font-weight: 800;
 }
 
 .btn-enable-on:hover {
@@ -136,19 +147,11 @@ form.nueva {
 .btn-enable-off {
   background: #b91c1c;
   color: #fff;
+  font-weight: 800;
 }
 
 .btn-enable-off:hover {
   filter: brightness(1.05);
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 0.55rem 0.95rem;
-  border-radius: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  border: 1px solid transparent;
 }
 
 .btn-primary {
@@ -320,6 +323,20 @@ button[type="submit"] {
   cursor: pointer;
 }
 
+button[type="submit"].btn-primary,
+button[type="submit"].btn-secondary,
+button[type="submit"].btn-enable-on,
+button[type="submit"].btn-enable-off,
+button[type="submit"].btn-danger {
+  margin-top: 1rem;
+}
+
+button[type="submit"].btn-secondary {
+  background: #fff;
+  color: #14532d;
+  border: 1px solid #bbf7d0;
+}
+
 .pregunta {
   background: #fff;
   padding: 1rem 1.25rem;
@@ -354,4 +371,204 @@ button[type="submit"] {
   color: #047857;
   padding: 0.65rem;
   border-radius: 8px;
+}
+
+/* ── Selector de modo ── */
+
+.eval-mode-form {
+  display: inline-flex;
+  align-items: center;
+}
+
+.eval-mode-form select {
+  width: auto;
+  height: 38px;
+  margin: 0;
+  padding: 0 0.65rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+  color: #14532d;
+  cursor: pointer;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+/* ── Variantes: header ── */
+
+.variantes-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.btn-add-variante {
+  padding: 0.5rem 1rem;
+  background: #15803d;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.btn-add-variante:hover {
+  filter: brightness(1.08);
+}
+
+/* ── Acordeones de variantes ── */
+
+.variante-accordion {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 0.85rem;
+  overflow: hidden;
+  background: #fff;
+}
+
+.variante-accordion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  background: #f0fdf4;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background 0.15s;
+}
+
+.variante-accordion-head:hover {
+  background: #dcfce7;
+}
+
+.variante-accordion-title {
+  font-weight: 700;
+  color: #14532d;
+  font-size: 1rem;
+}
+
+.variante-accordion-arrow {
+  font-size: 0.85rem;
+  color: #64748b;
+  transition: transform 0.2s;
+}
+
+.variante-accordion-body {
+  padding: 1rem;
+}
+
+/* ── Config row dentro de variante ── */
+
+.variante-config-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.variante-config-row > div {
+  flex: 1;
+  min-width: 180px;
+}
+
+.variante-config-row select {
+  width: auto;
+  min-width: 80px;
+}
+
+/* ── Sección de asesores ── */
+
+.variante-asesores-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.variante-asesores-section h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  color: #14532d;
+}
+
+.asesores-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.asesor-check-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin: 0;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.asesor-check-label:hover {
+  background: #f0fdf4;
+}
+
+.asesor-check-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #15803d;
+}
+
+/* ── Botón eliminar variante ── */
+
+.variante-delete-form {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #fecaca;
+}
+
+.btn-danger {
+  padding: 0.45rem 0.85rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-danger:hover {
+  background: #fee2e2;
+}
+
+/* ── Fieldset dentro de variantes ── */
+
+.variante-form .eval-fieldset {
+  margin-top: 0.5rem;
+}
+
+/* ── Asesor en otra variante ── */
+
+.asesor-en-otra {
+  opacity: 0.7;
+}
+
+.badge-otra-variante {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  font-weight: 600;
 }

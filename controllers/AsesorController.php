@@ -479,32 +479,68 @@ class AsesorController extends Controller
             $cfgCursoEval = CursoEvaluacion::getConfig($pdo, $idCurso);
             $reqCursoEval = max(1, min(10, (int) ($cfgCursoEval['preguntas_requeridas'] ?? 1)));
             $actCursoEval = (int) ($cfgCursoEval['activo'] ?? 0) === 1;
-            $pregsCursoEval = CursoEvaluacion::preguntasPorCurso($pdo, $idCurso);
-            $byOrdenCursoEval = [];
-            foreach ($pregsCursoEval as $pCursoEval) {
-                $ordenCursoEval = (int) ($pCursoEval['orden'] ?? 0);
-
-                if ($ordenCursoEval > 0) {
-                    $byOrdenCursoEval[$ordenCursoEval] = $pCursoEval;
-                }
-            }
-            $itemsCursoEval = 0;
-            for ($ordenCursoEval = 1; $ordenCursoEval <= $reqCursoEval; $ordenCursoEval++) {
-                if (isset($byOrdenCursoEval[$ordenCursoEval])) {
-                    $itemsCursoEval++;
-                }
-            }
+            $modoEvalCurso = (string) ($cfgCursoEval['modo_evaluacion'] ?? 'unico');
             $cursoEvalEstado['active'] = $actCursoEval;
             $cursoEvalEstado['required'] = $reqCursoEval;
-            $cursoEvalEstado['items'] = $itemsCursoEval;
 
-            if ($actCursoEval && $itemsCursoEval >= $reqCursoEval) {
-                $cursoEvalEstado['available'] = true;
-                $cursoEvalEstado['reason'] = 'new_ready';
-            } elseif (!$actCursoEval && count($pregsCursoEval) > 0) {
-                $cursoEvalEstado['reason'] = 'new_inactive';
-            } elseif ($actCursoEval && $itemsCursoEval < $reqCursoEval) {
-                $cursoEvalEstado['reason'] = 'new_incomplete';
+            if ($modoEvalCurso === 'manual') {
+                $idVarAsesor = CursoEvalVariante::varianteDelAsesor($pdo, $idCurso, $cedulaAsesor);
+                if ($idVarAsesor === null) {
+                    $cursoEvalEstado['reason'] = 'manual_no_asignado';
+                } else {
+                    $varInfo = CursoEvalVariante::buscarVariante($pdo, $idVarAsesor);
+                    $vReqEval = $varInfo ? (int) ($varInfo['preguntas_requeridas'] ?? $reqCursoEval) : $reqCursoEval;
+                    $vPregsEval = CursoEvalVariante::preguntasPorVariante($pdo, $idVarAsesor);
+                    $cursoEvalEstado['required'] = $vReqEval;
+                    $cursoEvalEstado['items'] = count($vPregsEval);
+                    if ($actCursoEval && count($vPregsEval) >= $vReqEval) {
+                        $cursoEvalEstado['available'] = true;
+                        $cursoEvalEstado['reason'] = 'new_ready';
+                    } elseif (!$actCursoEval) {
+                        $cursoEvalEstado['reason'] = 'new_inactive';
+                    } else {
+                        $cursoEvalEstado['reason'] = 'manual_incomplete';
+                    }
+                }
+            } elseif ($modoEvalCurso === 'aleatorio') {
+                $varsEval = CursoEvalVariante::variantesPorCurso($pdo, $idCurso);
+                $totalPregsPool = 0;
+                foreach ($varsEval as $vEval) {
+                    $totalPregsPool += count(CursoEvalVariante::preguntasPorVariante($pdo, (int) $vEval['id_variante']));
+                }
+                $cursoEvalEstado['items'] = $totalPregsPool;
+                if ($actCursoEval && $totalPregsPool >= $reqCursoEval) {
+                    $cursoEvalEstado['available'] = true;
+                    $cursoEvalEstado['reason'] = 'new_ready';
+                } elseif (!$actCursoEval && $totalPregsPool > 0) {
+                    $cursoEvalEstado['reason'] = 'new_inactive';
+                } elseif ($totalPregsPool < $reqCursoEval) {
+                    $cursoEvalEstado['reason'] = 'aleatorio_sin_preguntas';
+                }
+            } else {
+                $pregsSinVar = CursoEvaluacion::preguntasSinVariante($pdo, $idCurso);
+                $byOrdenCursoEval = [];
+                foreach ($pregsSinVar as $pCursoEval) {
+                    $ordenCursoEval = (int) ($pCursoEval['orden'] ?? 0);
+                    if ($ordenCursoEval > 0) {
+                        $byOrdenCursoEval[$ordenCursoEval] = $pCursoEval;
+                    }
+                }
+                $itemsCursoEval = 0;
+                for ($ordenCursoEval = 1; $ordenCursoEval <= $reqCursoEval; $ordenCursoEval++) {
+                    if (isset($byOrdenCursoEval[$ordenCursoEval])) {
+                        $itemsCursoEval++;
+                    }
+                }
+                $cursoEvalEstado['items'] = $itemsCursoEval;
+                if ($actCursoEval && $itemsCursoEval >= $reqCursoEval) {
+                    $cursoEvalEstado['available'] = true;
+                    $cursoEvalEstado['reason'] = 'new_ready';
+                } elseif (!$actCursoEval && count($pregsSinVar) > 0) {
+                    $cursoEvalEstado['reason'] = 'new_inactive';
+                } elseif ($actCursoEval && $itemsCursoEval < $reqCursoEval) {
+                    $cursoEvalEstado['reason'] = 'new_incomplete';
+                }
             }
         } catch (Throwable $e) {
             $cursoEvalEstado['reason'] = 'new_error';
@@ -785,54 +821,99 @@ class AsesorController extends Controller
             return;
         }
         $idCurso = (int) $asig['id_curso'];
+        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
+
         try {
             $cfg = CursoEvaluacion::getConfig($pdo, $idCurso);
             $req = (int) ($cfg['preguntas_requeridas'] ?? 1);
             $req = max(1, min(10, $req));
             $act = (int) ($cfg['activo'] ?? 0) === 1;
-            $pregs = CursoEvaluacion::preguntasPorCurso($pdo, $idCurso);
-            $byOrden = [];
-            foreach ($pregs as $p) {
-                $orden = (int) ($p['orden'] ?? 0);
-                if ($orden > 0) {
-                    $byOrden[$orden] = $p;
-                }
-            }
-            $items = [];
-            for ($orden = 1; $orden <= $req; $orden++) {
-                $p = $byOrden[$orden] ?? null;
-                if (!$p) {
-                    continue;
-                }
-                $idP = (int) ($p['id_pregunta_curso'] ?? 0);
-                if ($idP <= 0) {
-                    continue;
-                }
-                $ops = CursoEvaluacion::opcionesPorPregunta($pdo, $idP);
-                $corr = CursoEvaluacion::getOpcionCorrecta($pdo, $idP);
-                $items[] = ['pregunta' => $p, 'opciones' => $ops, 'correcta' => $corr];
-            }
-            if ($act) {
-                if (count($items) >= $req) {
-                    $this->render('asesor/evaluacion', [
-                        'asignacion' => $asig,
-                        'curso' => Curso::buscar($pdo, $idCurso),
-                        'cursoEvalItems' => $items,
-                        'cursoEvalReq' => $req,
-                        'mensaje' => $this->flash('ok'),
-                        'error' => $this->flash('error'),
-                    ]);
+            $modoEval = (string) ($cfg['modo_evaluacion'] ?? 'unico');
+
+            if (!$act) {
+                $pregsAny = CursoEvaluacion::preguntasPorCurso($pdo, $idCurso);
+                if (count($pregsAny) > 0) {
+                    $this->flash('error', 'La evaluación final fue cargada, pero aún no está habilitada por el coordinador.');
+                    $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
                     return;
                 }
-                $this->flash('error', 'El coordinador aún no ha completado la evaluación final de este curso.');
-                $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
+                // fall through to legacy
+                throw new RuntimeException('no new eval');
+            }
+
+            $items = [];
+
+            if ($modoEval === 'manual') {
+                $idVariante = CursoEvalVariante::varianteDelAsesor($pdo, $idCurso, $cedula);
+                if ($idVariante === null) {
+                    $this->flash('error', 'El coordinador no le ha asignado una variante de evaluación.');
+                    $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
+                    return;
+                }
+                $variante = CursoEvalVariante::buscarVariante($pdo, $idVariante);
+                $vReq = $variante ? (int) ($variante['preguntas_requeridas'] ?? $req) : $req;
+                $vPregs = CursoEvalVariante::preguntasPorVariante($pdo, $idVariante);
+                $byOrden = [];
+                foreach ($vPregs as $p) {
+                    $orden = (int) ($p['orden'] ?? 0);
+                    if ($orden > 0) $byOrden[$orden] = $p;
+                }
+                for ($orden = 1; $orden <= $vReq; $orden++) {
+                    $p = $byOrden[$orden] ?? null;
+                    if (!$p) continue;
+                    $idP = (int) ($p['id_pregunta_curso'] ?? 0);
+                    if ($idP <= 0) continue;
+                    $ops = CursoEvaluacion::opcionesPorPregunta($pdo, $idP);
+                    $corr = CursoEvaluacion::getOpcionCorrecta($pdo, $idP);
+                    $items[] = ['pregunta' => $p, 'opciones' => $ops, 'correcta' => $corr];
+                }
+            } elseif ($modoEval === 'aleatorio') {
+                $instancia = CursoEvalVariante::obtenerInstancia($pdo, $idCurso, $cedula);
+                if ($instancia === null) {
+                    $instancia = CursoEvalVariante::generarInstanciaAleatoria($pdo, $idCurso, $cedula, $req);
+                } else {
+                    CursoEvalVariante::regenerarOrdenInstancia($pdo, (int) $instancia['id_instancia']);
+                    $instancia = CursoEvalVariante::obtenerInstancia($pdo, $idCurso, $cedula);
+                }
+                if ($instancia === null || ($instancia['preguntas_ids'] ?? []) === []) {
+                    $this->flash('error', 'No se pudo generar la evaluación aleatoria.');
+                    $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
+                    return;
+                }
+                $items = CursoEvalVariante::itemsDesdeInstancia($pdo, $instancia);
+            } else {
+                $pregs = CursoEvaluacion::preguntasSinVariante($pdo, $idCurso);
+                $byOrden = [];
+                foreach ($pregs as $p) {
+                    $orden = (int) ($p['orden'] ?? 0);
+                    if ($orden > 0) $byOrden[$orden] = $p;
+                }
+                for ($orden = 1; $orden <= $req; $orden++) {
+                    $p = $byOrden[$orden] ?? null;
+                    if (!$p) continue;
+                    $idP = (int) ($p['id_pregunta_curso'] ?? 0);
+                    if ($idP <= 0) continue;
+                    $ops = CursoEvaluacion::opcionesPorPregunta($pdo, $idP);
+                    $corr = CursoEvaluacion::getOpcionCorrecta($pdo, $idP);
+                    $items[] = ['pregunta' => $p, 'opciones' => $ops, 'correcta' => $corr];
+                }
+            }
+
+            if ($items !== []) {
+                $this->render('asesor/evaluacion', [
+                    'asignacion' => $asig,
+                    'curso' => Curso::buscar($pdo, $idCurso),
+                    'cursoEvalItems' => $items,
+                    'cursoEvalReq' => count($items),
+                    'mensaje' => $this->flash('ok'),
+                    'error' => $this->flash('error'),
+                ]);
                 return;
             }
-            if (count($pregs) > 0) {
-                $this->flash('error', 'La evaluación final fue cargada, pero aún no está habilitada por el coordinador.');
-                $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
-                return;
-            }
+
+            $this->flash('error', 'El coordinador aún no ha completado la evaluación final de este curso.');
+            $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
+            return;
         } catch (Throwable $e) {
             // Continuar con evaluación legacy (preguntas_evaluacion).
         }
@@ -866,7 +947,6 @@ class AsesorController extends Controller
 
         if ($asig === null) {
             $this->flash('error', 'Sesión inválida.');
-
             $this->redirect('?c=asesor&a=index');
             return;
         }
@@ -874,97 +954,117 @@ class AsesorController extends Controller
 
         if ($estadoCap !== 'evaluacion_pendiente') {
             $this->flash('error', 'No puede enviar la evaluación ahora.');
-
             $this->redirect('?c=asesor&a=index');
             return;
         }
         $idCurso = (int) $asig['id_curso'];
-        // Intentar evaluación nueva (curso_eval_*). Si no aplica, fallback legacy.
+        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
+
         try {
             $cfg = CursoEvaluacion::getConfig($pdo, $idCurso);
             $req = (int) ($cfg['preguntas_requeridas'] ?? 1);
             $req = max(1, min(10, $req));
             $act = (int) ($cfg['activo'] ?? 0) === 1;
+            $modoEval = (string) ($cfg['modo_evaluacion'] ?? 'unico');
 
-            if ($act) {
-                $pregs = CursoEvaluacion::preguntasPorCurso($pdo, $idCurso);
-                $byOrden = [];
-                foreach ($pregs as $p) {
-                    $orden = (int) ($p['orden'] ?? 0);
-
-                    if ($orden > 0) {
-                        $byOrden[$orden] = $p;
-                    }
-                }
-
-                $correctas = 0;
-                $total = 0;
-                for ($orden = 1; $orden <= $req; $orden++) {
-                    $p = $byOrden[$orden] ?? null;
-
-                    if (!$p) {
-                        continue;
-                    }
-                    $idP = (int) ($p['id_pregunta_curso'] ?? 0);
-
-                    if ($idP <= 0) {
-                        continue;
-                    }
-                    $corr = CursoEvaluacion::getOpcionCorrecta($pdo, $idP);
-                    $name = 'p_' . $idP;
-                    $resp = (int) ($_POST[$name] ?? 0);
-                    $total++;
-
-                    if ($corr !== null && $resp === (int) $corr) {
-                        $correctas++;
-                    }
-                }
-                if ($total === 0) {
-                    $this->flash('error', 'No hay preguntas.');
-
+            if (!$act) {
+                $pregsAny = CursoEvaluacion::preguntasPorCurso($pdo, $idCurso);
+                if (count($pregsAny) > 0) {
+                    $this->flash('error', 'La evaluación final fue cargada, pero aún no está habilitada por el coordinador.');
                     $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
                     return;
                 }
+                throw new RuntimeException('no new eval');
+            }
 
-                $ratio = $correctas / $total;
-                $puntaje = self::puntajeEvaluacionFinal($correctas, $total);
-                $resultado = $ratio >= 0.7 ? 'aprobado' : 'reprobado';
-                $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
+            $preguntaIds = [];
 
-                IntentoEvaluacion::registrar($pdo, $cedula, $idCurso, $puntaje, $resultado);
-
-                if ($resultado === 'aprobado') {
-                    if (CursoProgreso::asesorCompletoTodosModulos($pdo, $cedula, $idCurso)) {
-                        CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'completado');
-
-                        Insignia::otorgarCursoCompletado($pdo, $cedula, $idCurso, [
-                            'puntaje' => $puntaje,
-                            'correctas' => $correctas,
-                            'total' => $total,
-                        ]);
-
-                        $this->flash('ok', 'Evaluación aprobada. Insignia otorgada. Nota: ' . self::notaEvaluacionTexto($puntaje) . '/10.');
-                    } else {
-                        CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'evaluacion_pendiente');
-
-                        $this->flash('error', 'Evaluación aprobada, pero aún faltan módulos por completar al 100%.');
+            if ($modoEval === 'manual') {
+                $idVariante = CursoEvalVariante::varianteDelAsesor($pdo, $idCurso, $cedula);
+                if ($idVariante === null) {
+                    $this->flash('error', 'No tiene variante asignada.');
+                    $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
+                    return;
+                }
+                $variante = CursoEvalVariante::buscarVariante($pdo, $idVariante);
+                $vReq = $variante ? (int) ($variante['preguntas_requeridas'] ?? $req) : $req;
+                $vPregs = CursoEvalVariante::preguntasPorVariante($pdo, $idVariante);
+                $byOrden = [];
+                foreach ($vPregs as $p) {
+                    $orden = (int) ($p['orden'] ?? 0);
+                    if ($orden > 0) $byOrden[$orden] = $p;
+                }
+                for ($orden = 1; $orden <= $vReq; $orden++) {
+                    $p = $byOrden[$orden] ?? null;
+                    if ($p) {
+                        $preguntaIds[] = (int) ($p['id_pregunta_curso'] ?? 0);
                     }
+                }
+            } elseif ($modoEval === 'aleatorio') {
+                $instancia = CursoEvalVariante::obtenerInstancia($pdo, $idCurso, $cedula);
+                if ($instancia !== null) {
+                    $preguntaIds = array_map('intval', $instancia['preguntas_orden'] ?? $instancia['preguntas_ids'] ?? []);
+                }
+            } else {
+                $pregs = CursoEvaluacion::preguntasSinVariante($pdo, $idCurso);
+                $byOrden = [];
+                foreach ($pregs as $p) {
+                    $orden = (int) ($p['orden'] ?? 0);
+                    if ($orden > 0) $byOrden[$orden] = $p;
+                }
+                for ($orden = 1; $orden <= $req; $orden++) {
+                    $p = $byOrden[$orden] ?? null;
+                    if ($p) {
+                        $preguntaIds[] = (int) ($p['id_pregunta_curso'] ?? 0);
+                    }
+                }
+            }
+
+            $preguntaIds = array_filter($preguntaIds, fn($id) => $id > 0);
+            $correctas = 0;
+            $total = 0;
+
+            foreach ($preguntaIds as $idP) {
+                $corr = CursoEvaluacion::getOpcionCorrecta($pdo, $idP);
+                $name = 'p_' . $idP;
+                $resp = (int) ($_POST[$name] ?? 0);
+                $total++;
+                if ($corr !== null && $resp === (int) $corr) {
+                    $correctas++;
+                }
+            }
+
+            if ($total === 0) {
+                $this->flash('error', 'No hay preguntas.');
+                $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
+                return;
+            }
+
+            $ratio = $correctas / $total;
+            $puntaje = self::puntajeEvaluacionFinal($correctas, $total);
+            $resultado = $ratio >= 0.7 ? 'aprobado' : 'reprobado';
+
+            IntentoEvaluacion::registrar($pdo, $cedula, $idCurso, $puntaje, $resultado);
+
+            if ($resultado === 'aprobado') {
+                if (CursoProgreso::asesorCompletoTodosModulos($pdo, $cedula, $idCurso)) {
+                    CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'completado');
+                    Insignia::otorgarCursoCompletado($pdo, $cedula, $idCurso, [
+                        'puntaje' => $puntaje,
+                        'correctas' => $correctas,
+                        'total' => $total,
+                    ]);
+                    $this->flash('ok', 'Evaluación aprobada. Insignia otorgada. Nota: ' . self::notaEvaluacionTexto($puntaje) . '/10.');
                 } else {
                     CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'evaluacion_pendiente');
-
-                    $this->flash('error', 'No alcanzó el mínimo (70%). Puede revisar el material e intentar de nuevo.');
+                    $this->flash('error', 'Evaluación aprobada, pero aún faltan módulos por completar al 100%.');
                 }
-                $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
-                return;
+            } else {
+                CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'evaluacion_pendiente');
+                $this->flash('error', 'No alcanzó el mínimo (70%). Puede revisar el material e intentar de nuevo.');
             }
-            $pregsInactivas = CursoEvaluacion::preguntasPorCurso($pdo, $idCurso);
-
-            if (count($pregsInactivas) > 0) {
-                $this->flash('error', 'La evaluación final fue cargada, pero aún no está habilitada por el coordinador.');
-
-                $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
-                return;
-            }
+            $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
+            return;
         } catch (Throwable $e) {
             // continuar con legacy
         }
@@ -975,14 +1075,12 @@ class AsesorController extends Controller
 
         if ($total === 0) {
             $this->flash('error', 'No hay preguntas.');
-
             $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);
             return;
         }
         foreach ($preguntas as $p) {
             $name = 'p_' . (int) $p['id_pregunta'];
             $resp = (string) ($_POST[$name] ?? '');
-
             if ($resp === ($p['respuesta_correcta'] ?? '')) {
                 $correctas++;
             }
@@ -990,30 +1088,24 @@ class AsesorController extends Controller
         $ratio = $correctas / $total;
         $puntaje = self::puntajeEvaluacionFinal($correctas, $total);
         $resultado = $ratio >= 0.7 ? 'aprobado' : 'reprobado';
-        $cedula = (string) ($_SESSION['usuario_cedula'] ?? '');
 
         IntentoEvaluacion::registrar($pdo, $cedula, $idCurso, $puntaje, $resultado);
 
         if ($resultado === 'aprobado') {
-            // Por seguridad, validar que el curso realmente cumple la regla de completado (módulos 100% + quiz).
             if (CursoProgreso::asesorCompletoTodosModulos($pdo, $cedula, $idCurso)) {
                 CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'completado');
-
                 Insignia::otorgarCursoCompletado($pdo, $cedula, $idCurso, [
                     'puntaje' => $puntaje,
                     'correctas' => $correctas,
                     'total' => $total,
                 ]);
-
                 $this->flash('ok', 'Evaluación aprobada. Insignia otorgada. Nota: ' . self::notaEvaluacionTexto($puntaje) . '/10.');
             } else {
                 CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'evaluacion_pendiente');
-
                 $this->flash('error', 'Evaluación aprobada, pero aún faltan módulos por completar al 100%.');
             }
         } else {
             CapacitacionAsignada::completarEvaluacion($pdo, $idAsignacion, $puntaje, 'evaluacion_pendiente');
-
             $this->flash('error', 'No alcanzó el mínimo (70%). Puede revisar el material e intentar de nuevo.');
         }
         $this->redirect('?c=asesor&a=curso&id=' . $idAsignacion);

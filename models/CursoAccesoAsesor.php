@@ -80,9 +80,10 @@ class CursoAccesoAsesor
         $st = $pdo->prepare(
             'SELECT cap.cedula_asesor AS cedula, u.nombre
              FROM curso_asesores_permitidos cap
-             LEFT JOIN usuarios u ON u.cedula = cap.cedula_asesor
+             INNER JOIN usuarios u ON u.cedula = cap.cedula_asesor
+                AND u.rol = \'asesor\' AND u.estado = \'activo\'
              WHERE cap.id_curso = :id
-             ORDER BY COALESCE(u.nombre, cap.cedula_asesor) ASC'
+             ORDER BY u.nombre ASC'
         );
         $st->execute(['id' => $idCurso]);
         $out = [];
@@ -101,7 +102,13 @@ class CursoAccesoAsesor
         if (!self::tieneTablaPermitidos($pdo)) {
             return 0;
         }
-        $st = $pdo->prepare('SELECT COUNT(*) AS n FROM curso_asesores_permitidos WHERE id_curso = :id');
+        $st = $pdo->prepare(
+            'SELECT COUNT(*) AS n
+             FROM curso_asesores_permitidos cap
+             INNER JOIN usuarios u ON u.cedula = cap.cedula_asesor
+                AND u.rol = \'asesor\' AND u.estado = \'activo\'
+             WHERE cap.id_curso = :id'
+        );
         $st->execute(['id' => $idCurso]);
         $row = $st->fetch();
 
@@ -140,6 +147,9 @@ class CursoAccesoAsesor
     public static function asesorPuedeVer(PDO $pdo, int $idCurso, string $cedulaAsesor): bool
     {
         if ($cedulaAsesor === '') {
+            return false;
+        }
+        if (!Usuario::esAsesorActivo($pdo, $cedulaAsesor)) {
             return false;
         }
         $curso = Curso::buscar($pdo, $idCurso);

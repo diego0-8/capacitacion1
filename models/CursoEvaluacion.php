@@ -6,24 +6,32 @@ class CursoEvaluacion
 {
     public static function getConfig(PDO $pdo, int $idCurso): array
     {
-        $st = $pdo->prepare('SELECT id_curso, preguntas_requeridas, activo FROM curso_eval_config WHERE id_curso = :c LIMIT 1');
+        $st = $pdo->prepare('SELECT id_curso, preguntas_requeridas, activo, modo_evaluacion FROM curso_eval_config WHERE id_curso = :c LIMIT 1');
         $st->execute(['c' => $idCurso]);
         $row = $st->fetch();
 
         if (!$row) {
-            return ['id_curso' => $idCurso, 'preguntas_requeridas' => 1, 'activo' => 0];
+            return ['id_curso' => $idCurso, 'preguntas_requeridas' => 1, 'activo' => 0, 'modo_evaluacion' => 'unico'];
+        }
+        if (!isset($row['modo_evaluacion']) || $row['modo_evaluacion'] === null) {
+            $row['modo_evaluacion'] = 'unico';
         }
         return $row;
     }
 
-    public static function upsertConfig(PDO $pdo, int $idCurso, int $preguntasRequeridas, int $activo, int $max = 10): void
+    public static function upsertConfig(PDO $pdo, int $idCurso, int $preguntasRequeridas, int $activo, int $max = 10, string $modoEvaluacion = 'unico'): void
     {
         $preguntasRequeridas = max(1, min($max, $preguntasRequeridas));
         $activo = $activo ? 1 : 0;
-        $sql = 'INSERT INTO curso_eval_config (id_curso, preguntas_requeridas, activo)
-                VALUES (:c, :p, :a)
-                ON DUPLICATE KEY UPDATE preguntas_requeridas = VALUES(preguntas_requeridas), activo = VALUES(activo)';
-        $pdo->prepare($sql)->execute(['c' => $idCurso, 'p' => $preguntasRequeridas, 'a' => $activo]);
+        if (!in_array($modoEvaluacion, ['unico', 'manual', 'aleatorio'], true)) {
+            $modoEvaluacion = 'unico';
+        }
+        $sql = 'INSERT INTO curso_eval_config (id_curso, preguntas_requeridas, activo, modo_evaluacion)
+                VALUES (:c, :p, :a, :m)
+                ON DUPLICATE KEY UPDATE preguntas_requeridas = VALUES(preguntas_requeridas),
+                                        activo = VALUES(activo),
+                                        modo_evaluacion = VALUES(modo_evaluacion)';
+        $pdo->prepare($sql)->execute(['c' => $idCurso, 'p' => $preguntasRequeridas, 'a' => $activo, 'm' => $modoEvaluacion]);
     }
 
     /** @return array<int, array<string,mixed>> */
@@ -105,7 +113,25 @@ class CursoEvaluacion
 
     public static function eliminarPregunta(PDO $pdo, int $idCurso, int $orden): void
     {
-        $pdo->prepare('DELETE FROM curso_eval_preguntas WHERE id_curso = :c AND orden = :o')->execute(['c' => $idCurso, 'o' => $orden]);
+        $pdo->prepare('DELETE FROM curso_eval_preguntas WHERE id_curso = :c AND orden = :o AND id_variante IS NULL')->execute(['c' => $idCurso, 'o' => $orden]);
+    }
+
+    /** @return array<int, array<string,mixed>> */
+    public static function preguntasPorVariante(PDO $pdo, int $idVariante): array
+    {
+        $st = $pdo->prepare('SELECT * FROM curso_eval_preguntas WHERE id_variante = :v ORDER BY orden ASC');
+        $st->execute(['v' => $idVariante]);
+
+        return $st->fetchAll();
+    }
+
+    /** Preguntas sin variante (modo único / legacy). */
+    public static function preguntasSinVariante(PDO $pdo, int $idCurso): array
+    {
+        $st = $pdo->prepare('SELECT * FROM curso_eval_preguntas WHERE id_curso = :c AND id_variante IS NULL ORDER BY orden ASC');
+        $st->execute(['c' => $idCurso]);
+
+        return $st->fetchAll();
     }
 }
 

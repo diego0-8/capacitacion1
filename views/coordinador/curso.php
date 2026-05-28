@@ -107,6 +107,7 @@
                       $idLeccion = (int) ($L['id_leccion'] ?? 0);
                       $img = (string) ($L['imagen_path'] ?? '');
                       $vid = (string) ($L['video_path'] ?? '');
+                      $pdf = (string) ($L['pdf_path'] ?? '');
                       $imgTexto = (string) ($L['imagen_texto'] ?? '');
                       ?>
                       <li class="curso-item<?php echo $idLeccion === $idLeccRes ? ' curso-item--active' : ''; ?>" id="coord-curso-<?php echo $idLeccion; ?>">
@@ -127,6 +128,7 @@
                             data-imagen="<?php echo htmlspecialchars($img, ENT_QUOTES); ?>"
                             data-imagen-texto="<?php echo htmlspecialchars($imgTexto, ENT_QUOTES); ?>"
                             data-video="<?php echo htmlspecialchars($vid, ENT_QUOTES); ?>"
+                            data-pdf="<?php echo htmlspecialchars($pdf, ENT_QUOTES); ?>"
                           >Configurar curso</button>
                           <a
                             class="link-danger"
@@ -268,20 +270,36 @@
             <label>¿De qué se trata este curso? (obligatorio)</label>
             <textarea name="contenido" id="cfg-contenido" rows="8" required placeholder="Describe el contenido del curso…"></textarea>
 
-            <label>Imagen (opcional)</label>
-            <input type="file" name="imagen" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
-            <div class="preview" id="cfg-prev-img"></div>
+            <section class="material-section" aria-label="Material del curso">
+              <h3>Material del curso</h3>
+              <p class="muted small">Además de la descripción, puedes subir imagen, video y un PDF opcional para apoyar la clase.</p>
 
-            <div id="cfg-imagen-texto-wrap" class="hidden">
-              <label>Texto para mostrar al dar clic en la imagen (opcional)</label>
-              <textarea name="imagen_texto" id="cfg-imagen-texto" rows="4" placeholder="Ej.: Explicación / concepto clave / mensaje de ciberseguridad…"></textarea>
-            </div>
+              <label>Imagen (opcional)</label>
+              <input type="file" name="imagen" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+              <div class="preview" id="cfg-prev-img"></div>
 
-            <label>Video MP4 (opcional)</label>
-            <input type="file" name="video" accept=".mp4,video/mp4">
-            <div class="preview" id="cfg-prev-vid"></div>
+              <div id="cfg-imagen-texto-wrap" class="hidden">
+                <label>Texto para mostrar al dar clic en la imagen (opcional)</label>
+                <textarea name="imagen_texto" id="cfg-imagen-texto" rows="4" placeholder="Ej.: Explicación / concepto clave / mensaje de ciberseguridad…"></textarea>
+              </div>
+
+              <label>Video MP4 (opcional, máximo 10 minutos)</label>
+              <input type="file" name="video" id="cfg-video" accept=".mp4,video/mp4">
+              <div class="preview" id="cfg-prev-vid"></div>
+
+              <label>PDF de apoyo (opcional)</label>
+              <input type="file" name="pdf" accept=".pdf,application/pdf">
+              <div class="preview" id="cfg-prev-pdf"></div>
+            </section>
 
             <button type="submit">Guardar configuración</button>
+          </form>
+
+          <form id="form-del-recurso-leccion" method="post" action="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=leccion_eliminar_recurso'); ?>" style="display:none;">
+            <input type="hidden" name="id_curso" value="<?php echo (int) $curso['id_cursos']; ?>">
+            <input type="hidden" name="id_modulo" id="del-lec-modulo" value="">
+            <input type="hidden" name="id_leccion" id="del-lec-leccion" value="">
+            <input type="hidden" name="recurso" id="del-lec-recurso" value="">
           </form>
         </div>
       </section>
@@ -362,8 +380,11 @@
     var contenido = byId('cfg-contenido');
     var prevImg = byId('cfg-prev-img');
     var prevVid = byId('cfg-prev-vid');
+    var prevPdf = byId('cfg-prev-pdf');
+    var videoInput = byId('cfg-video');
     var imgTxtWrap = byId('cfg-imagen-texto-wrap');
     var imgTxt = byId('cfg-imagen-texto');
+    var maxVideoSeconds = 10 * 60;
 
     var modalOpen = null;
     function focusFirstField(modal) {
@@ -400,9 +421,13 @@
 
       var img = btn.getAttribute('data-imagen') || '';
       var vid = btn.getAttribute('data-video') || '';
+      var pdf = btn.getAttribute('data-pdf') || '';
       var imgTexto = btn.getAttribute('data-imagen-texto') || '';
-      prevImg.innerHTML = img ? ('<small class="muted">Imagen actual:</small><br><a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/'); ?>' + img + '">Abrir imagen</a>') : '';
-      prevVid.innerHTML = vid ? ('<small class="muted">Video actual:</small><br><a target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/'); ?>' + vid + '">Abrir video</a>') : '';
+      var baseUrl = <?php echo json_encode(BASE_URL . '/'); ?>;
+      var btnDel = ' <button type="button" class="btn-del-recurso" data-del-tipo="IMG_TYPE">Eliminar</button>';
+      prevImg.innerHTML = img ? ('<small class="muted">Imagen actual:</small><br><a target="_blank" rel="noopener" href="' + baseUrl + img + '">Abrir imagen</a>' + btnDel.replace('IMG_TYPE', 'imagen')) : '';
+      prevVid.innerHTML = vid ? ('<small class="muted">Video actual:</small><br><a target="_blank" rel="noopener" href="' + baseUrl + vid + '">Abrir video</a>' + btnDel.replace('IMG_TYPE', 'video')) : '';
+      prevPdf.innerHTML = pdf ? ('<small class="muted">PDF actual:</small><br><a target="_blank" rel="noopener" href="' + baseUrl + pdf + '">Abrir PDF</a>' + btnDel.replace('IMG_TYPE', 'pdf')) : '';
 
       imgTxt.value = imgTexto || '';
       if (img || imgTexto) {
@@ -452,6 +477,43 @@
         closeModal(modal2);
       }
     });
+
+    function validarDuracionVideo(input) {
+      return new Promise(function (resolve) {
+        if (!input || !input.files || input.files.length === 0) {
+          resolve(true);
+          return;
+        }
+        var file = input.files[0];
+        var url = URL.createObjectURL(file);
+        var video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = function () {
+          URL.revokeObjectURL(url);
+          resolve(video.duration <= maxVideoSeconds);
+        };
+        video.onerror = function () {
+          URL.revokeObjectURL(url);
+          resolve(false);
+        };
+        video.src = url;
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        if (!videoInput || !videoInput.files || videoInput.files.length === 0) return;
+        e.preventDefault();
+        validarDuracionVideo(videoInput).then(function (ok) {
+          if (!ok) {
+            alert('El video no puede superar los 10 minutos.');
+            videoInput.value = '';
+            return;
+          }
+          form.submit();
+        });
+      });
+    }
 
     // Mostrar textarea de texto cuando se elige una imagen nueva
     document.addEventListener('change', function (e) {
@@ -565,5 +627,40 @@
     });
   });
   </script>
+  <script>
+  (function () {
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.btn-del-recurso');
+      if (!btn) return;
+      e.preventDefault();
+      var tipo = btn.getAttribute('data-del-tipo') || '';
+      if (!tipo) return;
+      if (!confirm('¿Eliminar este recurso? Esta acción no se puede deshacer.')) return;
+      var formDel = document.getElementById('form-del-recurso-leccion');
+      if (!formDel) return;
+      document.getElementById('del-lec-modulo').value = document.getElementById('cfg-id-modulo').value || '';
+      document.getElementById('del-lec-leccion').value = document.getElementById('cfg-id-leccion').value || '';
+      document.getElementById('del-lec-recurso').value = tipo;
+      formDel.submit();
+    });
+  })();
+  </script>
+  <style>
+    .btn-del-recurso {
+      display: inline-block;
+      margin-left: 0.5rem;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-del-recurso:hover {
+      background: #fee2e2;
+    }
+  </style>
 </body>
 </html>

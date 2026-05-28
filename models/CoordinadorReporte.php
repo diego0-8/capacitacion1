@@ -64,14 +64,14 @@ class CoordinadorReporte
     public static function asesoresPorCurso(PDO $pdo, array $curso, int $idCurso): array
     {
         $colEmpresa = self::tieneColumnaEmpresa($pdo) ? ', u.empresa AS empresa_asesor' : '';
-        // LEFT JOIN: si falta fila en usuarios, igual se lista la inscripción. Excluir solo no-asesores con usuario existente.
+        // Solo asesores activos en usuarios (inactivos no aparecen en reportes ni modales del coordinador).
         $sql = 'SELECT ca.id_asignacion, ca.cedula_asesor, ca.id_curso, ca.fecha_asignacion,
                        ca.estado_capacitacion, ca.progreso_porcentaje, ca.calificacion_obtenida, ca.fecha_completado,
                        u.nombre AS nombre_asesor' . $colEmpresa . '
                 FROM capacitaciones_asignadas ca
                 LEFT JOIN usuarios u ON u.cedula = ca.cedula_asesor
                 WHERE ca.id_curso = :c
-                  AND (u.cedula IS NULL OR u.rol = \'asesor\')
+                  AND ' . Usuario::sqlWhereAsesorVisibleEnListados('u') . '
                 ORDER BY COALESCE(u.nombre, ca.cedula_asesor) ASC';
         $st = $pdo->prepare($sql);
         $st->execute(['c' => $idCurso]);
@@ -327,10 +327,24 @@ class CoordinadorReporte
      */
     public static function detalleAsesor(PDO $pdo, array $curso, int $idCurso, string $cedulaAsesor): array
     {
+        if (!Usuario::esAsesorActivo($pdo, $cedulaAsesor)) {
+            return [
+                'curso' => $curso,
+                'asesor' => ['cedula' => $cedulaAsesor],
+                'timeline' => [],
+                'asesor_inactivo' => true,
+            ];
+        }
+
         $asig = CapacitacionAsignada::buscarPorAsesorCurso($pdo, $cedulaAsesor, $idCurso);
 
         if (!$asig) {
-            return ['curso' => $curso, 'asesor' => ['cedula' => $cedulaAsesor], 'timeline' => []];
+            return [
+                'curso' => $curso,
+                'asesor' => ['cedula' => $cedulaAsesor],
+                'timeline' => [],
+                'asesor_inactivo' => false,
+            ];
         }
         $u = Usuario::buscarPorCedula($pdo, $cedulaAsesor);
 
@@ -415,6 +429,7 @@ class CoordinadorReporte
                 'fecha_completado' => (string) ($asig['fecha_completado'] ?? ''),
             ],
             'timeline' => $timeline,
+            'asesor_inactivo' => false,
         ];
     }
 }

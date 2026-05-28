@@ -8,6 +8,18 @@
   <link rel="stylesheet" href="<?php echo htmlspecialchars(BASE_URL . '/assets/css/asesor_curso.css'); ?>">
 </head>
 <body>
+  <?php
+  /**
+   * @var array<string, mixed> $curso
+   * @var array<string, mixed> $asignacion
+   * @var array<int, array<string, mixed>> $modulos
+   * @var array<int, array<int, array<string, mixed>>> $leccionesPorModulo
+   * @var array<string, mixed> $cursoEvalEstado
+   */
+  $curso = is_array($curso ?? null) ? $curso : [];
+  $asignacion = is_array($asignacion ?? null) ? $asignacion : [];
+  $cursoEvalEstado = is_array($cursoEvalEstado ?? null) ? $cursoEvalEstado : ['available' => false, 'reason' => 'missing'];
+  ?>
   <nav class="topnav">
     <span><?php echo htmlspecialchars($curso['nombre_curso'] ?? ''); ?></span>
     <a href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=asesor&a=index'); ?>">Mis cursos</a>
@@ -151,6 +163,7 @@
                 $img = (string) ($leccionSeleccionada['imagen_path'] ?? '');
                 $imgTxt = (string) ($leccionSeleccionada['imagen_texto'] ?? '');
                 $vid = (string) ($leccionSeleccionada['video_path'] ?? '');
+                $pdf = (string) ($leccionSeleccionada['pdf_path'] ?? '');
                 $ruta = (string) ($leccionSeleccionada['ruta_video'] ?? '');
                 $idLeccionSel = (int) ($leccionSeleccionada['id_leccion'] ?? 0);
                 $yaCompleta = $idLeccionSel > 0 && !empty($leccionesCompletadasSet) && isset($leccionesCompletadasSet[$idLeccionSel]);
@@ -209,6 +222,11 @@
                     <a class="btn btn-outline-secondary" target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $ruta)); ?>">Descargar / abrir material</a>
                   </div>
                 <?php endif; ?>
+                <?php if ($pdf !== ''): ?>
+                  <div class="mb-3">
+                    <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="<?php echo htmlspecialchars(BASE_URL . '/' . str_replace('\\', '/', $pdf)); ?>">Abrir PDF de apoyo</a>
+                  </div>
+                <?php endif; ?>
 
                 <form id="form-completar" method="post" action="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=asesor&a=leccion_completar'); ?>">
                   <input type="hidden" name="id_asignacion" value="<?php echo (int) $asignacion['id_asignacion']; ?>">
@@ -249,6 +267,12 @@
                     El coordinador ya cargó la evaluación final, pero aún no la ha habilitado.
                   <?php elseif ($cursoEvalReason === 'new_incomplete'): ?>
                     El coordinador aún no completa la evaluación final del curso.
+                  <?php elseif ($cursoEvalReason === 'manual_no_asignado'): ?>
+                    El coordinador aún no le ha asignado una evaluación.
+                  <?php elseif ($cursoEvalReason === 'manual_incomplete'): ?>
+                    La evaluación asignada aún no tiene todas las preguntas listas.
+                  <?php elseif ($cursoEvalReason === 'aleatorio_sin_preguntas'): ?>
+                    El coordinador aún no ha creado suficientes preguntas para la evaluación.
                   <?php else: ?>
                     El coordinador aún no ha cargado preguntas para este curso.
                   <?php endif; ?>

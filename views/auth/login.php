@@ -42,11 +42,11 @@
         <div class="auth-divider" aria-hidden="true">o</div>
 
         <div class="auth-register-block">
-          <p>¿Eres asesor y aún no tienes cuenta?</p>
+          <p>¿Aún no tienes cuenta? Regístrate aquí.</p>
           <a
             class="auth-btn-secondary"
             href="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=auth&a=registro'); ?>"
-          >Crear cuenta de asesor</a>
+          >Crear cuenta</a>
         </div>
       </div>
     </div>

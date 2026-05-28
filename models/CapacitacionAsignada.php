@@ -45,7 +45,8 @@ class CapacitacionAsignada
     {
         $sql = 'SELECT ca.*, u.nombre AS nombre_asesor, c.nombre_curso 
                 FROM capacitaciones_asignadas ca 
-                JOIN usuarios u ON u.cedula = ca.cedula_asesor 
+                INNER JOIN usuarios u ON u.cedula = ca.cedula_asesor
+                    AND u.rol = \'asesor\' AND u.estado = \'activo\'
                 JOIN cursos c ON c.id_cursos = ca.id_curso 
                 ORDER BY ca.fecha_asignacion DESC';
 
