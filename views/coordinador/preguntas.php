@@ -423,7 +423,6 @@
       <?php endforeach; ?>
     </section>
   <?php endif; ?>
-
     <form id="form-delete-recurso" method="post" action="<?php echo htmlspecialchars(BASE_URL . '/index.php?c=coordinador&a=curso_eval_eliminar_recurso'); ?>" style="display:none;">
       <input type="hidden" name="id_curso" value="<?php echo $idCurso; ?>">
       <input type="hidden" name="id_pregunta_curso" id="del-id-pregunta" value="">
@@ -448,7 +447,6 @@
       background: #fee2e2;
     }
   </style>
-
   <script>
   (function () {
     document.addEventListener('click', function (e) {
@@ -465,7 +463,6 @@
     });
   })();
   </script>
-
   <script>
   (function () {
     var evalModal = document.getElementById('eval-modal');
